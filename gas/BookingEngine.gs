@@ -1,4 +1,4 @@
-const WEB_UI_URL = 'https://your-github-pages-url'; // Plan 2 完成後更新
+const WEB_UI_URL = 'https://joseph101039.github.io/thsrc/ui/';
 
 // 主入口：執行一次訂票嘗試
 function runBooking(bookingId) {
