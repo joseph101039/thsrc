@@ -35,7 +35,8 @@ function createBooking(data) {
   if (scheduledAt) {
     scheduleBooking(id, new Date(scheduledAt));
   } else {
-    runBooking(id);
+    // 立即訂票：用觸發器非同步執行，避免 doPost 超時
+    scheduleBooking(id, new Date(Date.now() + 3000));
   }
 
   return { success: true, id };
