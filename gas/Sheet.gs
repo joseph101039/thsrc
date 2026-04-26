@@ -1,5 +1,7 @@
+const SPREADSHEET_ID = '1oFh2T6MzB7KMokpsBBTThdyLzxbAhT0Xlo4exFXyEuA';
+
 function getSheet(name) {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
   return ss.getSheetByName(name);
 }
 
