@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>高鐵訂票</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="page-header">
+    <h1>訂票紀錄</h1>
+  </header>
+
+  <main class="page-content">
+    <div id="bookings-list">
+      <div class="loading">載入中...</div>
+    </div>
+  </main>
+
+  <button class="fab" onclick="location.href='booking.html'" title="新增訂票">+</button>
+
+  <nav class="bottom-nav">
+    <a href="index.html" class="nav-item active">
+      <span class="nav-icon">🎫</span>
+      <span>訂票紀錄</span>
+    </a>
+    <a href="passengers.html" class="nav-item">
+      <span class="nav-icon">👤</span>
+      <span>乘客設定</span>
+    </a>
+  </nav>
+
+  <script src="js/api.js"></script>
+  <script src="js/index.js"></script>
+</body>
+</html>

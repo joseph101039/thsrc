@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>新增訂票</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="page-header">
+    <button class="back-btn" onclick="history.back()">&#8592;</button>
+    <h1>新增訂票</h1>
+  </header>
+
+  <main class="page-content">
+    <div class="form-group">
+      <label>乘客</label>
+      <select id="b-passenger">
+        <option value="">載入中...</option>
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label>出發站 / 到達站</label>
+      <div class="form-row-3">
+        <select id="b-from"></select>
+        <button class="swap-btn" onclick="swapStations()" title="互換">⇄</button>
+        <select id="b-to"></select>
+      </div>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label>乘車日期</label>
+        <input type="date" id="b-date">
+      </div>
+      <div class="form-group">
+        <label>期望時間</label>
+        <input type="time" id="b-desired-time" value="09:00">
+      </div>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label>允許最早</label>
+        <input type="time" id="b-earliest" value="08:00">
+      </div>
+      <div class="form-group">
+        <label>允許最晚</label>
+        <input type="time" id="b-latest" value="11:00">
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label>最大重試次數</label>
+      <input type="number" id="b-max-retries" value="10" min="1" max="50">
+    </div>
+
+    <div class="form-group">
+      <label>訂票時機</label>
+      <div class="toggle-group">
+        <button id="btn-immediate" class="active" onclick="setMode('immediate')">立即開始</button>
+        <button id="btn-scheduled" onclick="setMode('scheduled')">預約時間</button>
+      </div>
+    </div>
+
+    <div class="form-row" id="scheduled-fields" style="display:none">
+      <div class="form-group">
+        <label>預約日期</label>
+        <input type="date" id="b-schedule-date">
+      </div>
+      <div class="form-group">
+        <label>預約時間</label>
+        <input type="time" id="b-schedule-time">
+      </div>
+    </div>
+
+    <div class="alert alert-warning">
+      ⚠️ 搶票開始時系統會寄 Email 給您，請點信中連結輸入驗證碼。
+    </div>
+
+    <button class="btn btn-primary" id="submit-btn" onclick="submitBooking()">確認送出</button>
+  </main>
+
+  <nav class="bottom-nav">
+    <a href="index.html" class="nav-item">
+      <span class="nav-icon">🎫</span>
+      <span>訂票紀錄</span>
+    </a>
+    <a href="passengers.html" class="nav-item">
+      <span class="nav-icon">👤</span>
+      <span>乘客設定</span>
+    </a>
+  </nav>
+
+  <script src="js/api.js"></script>
+  <script src="js/booking.js"></script>
+</body>
+</html>

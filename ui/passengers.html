@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>乘客設定</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="page-header">
+    <h1>乘客設定</h1>
+  </header>
+
+  <main class="page-content">
+    <div id="passengers-list"></div>
+
+    <div class="card" id="passenger-form-card">
+      <div class="card-title" id="form-title">新增乘客</div>
+      <input type="hidden" id="edit-id">
+
+      <div class="form-group" style="margin-top:12px">
+        <label>姓名</label>
+        <input type="text" id="p-name" placeholder="輸入姓名">
+      </div>
+      <div class="form-group">
+        <label>身分證字號</label>
+        <input type="text" id="p-id-number" placeholder="A123456789" maxlength="10">
+      </div>
+      <div class="form-group">
+        <label>身份類型</label>
+        <select id="p-type">
+          <option value="adult">成人</option>
+          <option value="student">學生</option>
+          <option value="senior">敬老</option>
+          <option value="disabled">愛心</option>
+          <option value="child">兒童</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>通知 Email</label>
+        <input type="email" id="p-email" placeholder="your@email.com">
+      </div>
+      <button class="btn btn-primary" id="save-btn" onclick="savePassenger()">儲存乘客</button>
+    </div>
+  </main>
+
+  <nav class="bottom-nav">
+    <a href="index.html" class="nav-item">
+      <span class="nav-icon">🎫</span>
+      <span>訂票紀錄</span>
+    </a>
+    <a href="passengers.html" class="nav-item active">
+      <span class="nav-icon">👤</span>
+      <span>乘客設定</span>
+    </a>
+  </nav>
+
+  <script src="js/api.js"></script>
+  <script src="js/passengers.js"></script>
+</body>
+</html>
