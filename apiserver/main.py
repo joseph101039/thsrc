@@ -36,26 +36,30 @@ CAPTCHA_LEN: int = 4
 IMG_W: int = 160
 IMG_H: int = 50
 
-MODEL_PATH = Path(os.environ.get("MODEL_PATH", "captcha_model.keras"))
+MODEL_PATH = Path(os.environ.get("MODEL_PATH", "captcha_model.tflite"))
 
 # ─── Global model handle ──────────────────────────────────────────────────────
-_model = None
+_interpreter = None
+_input_index: int = 0
+_output_index: int = 0
 
 
 def _load_model():
-    global _model
+    global _interpreter, _input_index, _output_index
     try:
-        import tensorflow as tf  # noqa: F401
-        from tensorflow import keras
+        try:
+            from tflite_runtime.interpreter import Interpreter
+        except ImportError:
+            from tensorflow.lite.python.interpreter import Interpreter
 
-        keras.config.enable_unsafe_deserialization()
-        logger.info("Loading model from %s", MODEL_PATH)
-        _model = keras.models.load_model(str(MODEL_PATH), compile=False)
-        logger.info(
-            "Model ready — input: %s, output: %s",
-            _model.input_shape,
-            _model.output_shape,
-        )
+        logger.info("Loading TFLite model from %s", MODEL_PATH)
+        _interpreter = Interpreter(model_path=str(MODEL_PATH))
+        _interpreter.allocate_tensors()
+        _input_index = _interpreter.get_input_details()[0]["index"]
+        _output_index = _interpreter.get_output_details()[0]["index"]
+        input_shape = _interpreter.get_input_details()[0]["shape"]
+        output_shape = _interpreter.get_output_details()[0]["shape"]
+        logger.info("Model ready — input: %s, output: %s", input_shape, output_shape)
     except Exception as e:
         logger.error("Failed to load model: %s", e)
         raise
@@ -115,8 +119,12 @@ def _ctc_decode(y_pred: np.ndarray) -> tuple[list[int], list[float]]:
 
 
 def _predict_bgr(img_bgr: np.ndarray) -> tuple[str, list[float]]:
+    if _interpreter is None:
+        raise RuntimeError("Model not loaded")
     x = _preprocess(img_bgr)[np.newaxis, ...]     # (1, H, W, 1)
-    y_pred = _model.predict(x, verbose=0)[0]      # (T, 35)
+    _interpreter.set_tensor(_input_index, x)
+    _interpreter.invoke()
+    y_pred = _interpreter.get_tensor(_output_index)[0]  # (T, 35)
     indices, confs = _ctc_decode(y_pred)
     text = "".join(IDX2CHAR.get(i, "?") for i in indices)
     return text, confs
@@ -181,12 +189,13 @@ class ErrorResponse(BaseModel):
 )
 def health():
     """Returns service status and loaded model metadata."""
-    if _model is None:
+    if _interpreter is None:
         raise HTTPException(status_code=503, detail="Model not loaded")
+    input_shape = _interpreter.get_input_details()[0]["shape"]
     return {
         "status": "ok",
         "model": str(MODEL_PATH),
-        "input_shape": str(_model.input_shape),
+        "input_shape": str(input_shape),
     }
 
 
@@ -204,7 +213,7 @@ def solve_base64(body: SolveBase64Request):
     - Strips `data:image/...;base64,` prefix automatically.
     - Returns per-character CTC confidence values.
     """
-    if _model is None:
+    if _interpreter is None:
         raise HTTPException(status_code=503, detail="Model not loaded")
     try:
         b64 = body.image
@@ -234,7 +243,7 @@ async def solve_upload(file: UploadFile = File(..., description="Captcha image f
     Accepts a multipart file upload and returns the predicted captcha text.
     Useful for testing with `curl -F file=@captcha.png`.
     """
-    if _model is None:
+    if _interpreter is None:
         raise HTTPException(status_code=503, detail="Model not loaded")
     try:
         data = await file.read()
@@ -261,7 +270,7 @@ def solve_url(body: SolveUrlRequest):
     Downloads the image from a public URL and returns the predicted captcha text.
     Intended for direct GAS / server-side integration where the captcha URL is known.
     """
-    if _model is None:
+    if _interpreter is None:
         raise HTTPException(status_code=503, detail="Model not loaded")
     try:
         import urllib.request
