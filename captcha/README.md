@@ -7,8 +7,8 @@
 
 ```bash
 python3 -m venv venv
-source venv/bin/activate
-pip3 install tensorflow opencv-python matplotlib scikit-learn numpy selenium flask
+source .venv/bin/activate
+pip3 install -r requirements.txt
 ```
 
 之後每次進入工作環境：

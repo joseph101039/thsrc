@@ -1,0 +1,8 @@
+tensorflow-metal  # macOS GPU acceleration, Python ≤3.11 only
+tensorflow
+opencv-python
+matplotlib
+scikit-learn
+numpy
+selenium
+flask
