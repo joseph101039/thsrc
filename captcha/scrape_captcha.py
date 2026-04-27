@@ -9,6 +9,7 @@ THSRC Captcha Image Scraper (real Chrome via Selenium)
   儲存為 captcha_001.png … captcha_NNN.png
 """
 
+import argparse
 import sys
 import time
 import random
@@ -28,11 +29,15 @@ DELAY_MIN    = 1.5
 DELAY_MAX    = 3.0
 NAV_TIMEOUT  = 90   # 秒
 MAX_RETRIES  = 3    # 每張圖最多重試次數（含重建 driver）
+HEADLESS     = True # 背景執行（不開瀏覽器視窗）
 # ──────────────────────────────────────────────────────────────────────────────
 
 
 def make_driver() -> webdriver.Chrome:
     opts = Options()
+    if HEADLESS:
+        opts.add_argument("--headless=new")
+        opts.add_argument("--disable-gpu")
     opts.add_argument("--window-size=430,932")
     opts.add_argument("--lang=zh-TW")
     opts.set_capability("pageLoadStrategy", "normal")
@@ -62,7 +67,14 @@ def grab_one(dest: Path) -> bool:
         WebDriverWait(driver, NAV_TIMEOUT).until(
             EC.presence_of_element_located((By.CSS_SELECTOR, "img[src*='homeCaptcha']"))
         )
-        time.sleep(1.0)
+        # 等待圖片資源真正載入完成（naturalWidth > 0 表示像素已渲染）
+        WebDriverWait(driver, NAV_TIMEOUT).until(
+            lambda d: d.execute_script(
+                "const img = document.querySelector(\"img[src*='homeCaptcha']\");"
+                "return img && img.complete && img.naturalWidth > 0;"
+            )
+        )
+        time.sleep(0.5)
         dismiss_cookie_banner(driver)
 
         img = driver.find_element(By.CSS_SELECTOR, "img[src*='homeCaptcha']")
@@ -92,9 +104,21 @@ def next_index(output_dir: Path) -> int:
 
 
 def main():
+    global HEADLESS, TOTAL
+
+    parser = argparse.ArgumentParser(description="THSRC 驗證碼批次截圖")
+    parser.add_argument("-n", "--total", type=int, default=TOTAL,
+                        help=f"目標張數（預設 {TOTAL}）")
+    parser.add_argument("--no-headless", action="store_true",
+                        help="顯示瀏覽器視窗（預設背景執行）")
+    args = parser.parse_args()
+    HEADLESS = not args.no_headless
+    TOTAL = args.total
+
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     print(f"輸出資料夾：{OUTPUT_DIR}")
-    print(f"目標張數：{TOTAL}\n")
+    print(f"目標張數：{TOTAL}")
+    print(f"模式：{'headless（背景）' if HEADLESS else 'GUI（顯示視窗）'}\n")
 
     success = 0
     fail    = 0

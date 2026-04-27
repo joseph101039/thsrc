@@ -34,6 +34,7 @@ CAPTCHA_LENGTH_MAX: int = 5
 # ── 預設路徑 ─────────────────────────────────────────────────────────────────
 DEFAULT_IMG_DIR: Path = Path(__file__).parent / "captcha_images"
 DEFAULT_LABELS_JSON: Path = Path(__file__).parent / "labels.json"
+DEFAULT_MODEL_PATH: Path = Path(__file__).parent / "captcha_model.keras"
 
 # ── 顯示設定 ─────────────────────────────────────────────────────────────────
 DISPLAY_SCALE: int = 2      # 放大倍數，讓小圖更清楚
@@ -94,10 +95,62 @@ def validate_label(text: str) -> tuple[bool, str]:
     return True, text
 
 
+def pre_label_with_model(
+    unlabeled_paths: list[Path],
+    labels: dict[str, str],
+    model_path: Path,
+) -> dict[str, str]:
+    """
+    用訓練好的 CRNN 模型對未標注圖片產生預標。
+    僅當預測長度等於 4 且全為合法字元才寫入 labels（其餘留給人工輸入）。
+    回傳記錄哪些 stem 是模型預標的（供 review 階段提示用）。
+    """
+    try:
+        from predict_captcha import CaptchaSolver
+    except ImportError as e:
+        print(f"[錯誤] 無法匯入 predict_captcha：{e}", file=sys.stderr)
+        return {}
+
+    if not model_path.exists():
+        print(f"[錯誤] 找不到模型：{model_path}")
+        print("請先執行 python train_captcha.py 訓練模型")
+        return {}
+
+    print(f"\n[Pre-label] 載入模型：{model_path}")
+    try:
+        solver = CaptchaSolver(model_path)
+    except Exception as e:
+        print(f"[錯誤] 模型載入失敗：{e}", file=sys.stderr)
+        return {}
+
+    pre_labeled: dict[str, str] = {}
+    n = len(unlabeled_paths)
+    print(f"[Pre-label] 對 {n} 張未標注圖片進行預測...")
+
+    for i, img_path in enumerate(unlabeled_paths, 1):
+        try:
+            pred, _ = solver.solve_file(img_path)
+        except Exception as e:
+            print(f"  [{i}/{n}] {img_path.name} 預測失敗：{e}")
+            continue
+
+        ok, result = validate_label(pred)
+        if ok:
+            labels[img_path.stem] = result
+            pre_labeled[img_path.stem] = result
+        if i % 20 == 0 or i == n:
+            print(f"  [{i}/{n}] 預測完成，目前命中 {len(pre_labeled)} 張")
+
+    print(f"[Pre-label] 完成：{len(pre_labeled)}/{n} 張產生有效預標")
+    return pre_labeled
+
+
 def label_images(
     img_dir: Path,
     labels_path: Path,
     start_index: int = 0,
+    model_path: Path | None = None,
+    pre_label: bool = False,
 ) -> None:
     """主標注迴圈。"""
     # 取得所有圖片並排序
@@ -116,6 +169,29 @@ def label_images(
     total_all = len(img_files)
 
     print(f"\n圖片總數：{total_all}　|　已標注：{len(already_labeled)}　|　待 review：{total_todo}")
+
+    # ── 詢問是否用模型 pre-label 未標注圖片 ─────────────────────────────────
+    pre_labeled_stems: set[str] = set()
+    unlabeled = [p for p in todo if p.stem not in already_labeled]
+    if unlabeled and not pre_label:
+        mp = model_path or DEFAULT_MODEL_PATH
+        if mp.exists():
+            try:
+                ans = input(
+                    f"\n發現 {len(unlabeled)} 張未標注圖片。"
+                    f"是否用模型（{mp.name}）先做 pre-labeling，再由人工確認？[y/N] → "
+                ).strip().lower()
+            except (EOFError, KeyboardInterrupt):
+                ans = ""
+            pre_label = ans in ("y", "yes")
+
+    if pre_label and unlabeled:
+        mp = model_path or DEFAULT_MODEL_PATH
+        pre_dict = pre_label_with_model(unlabeled, labels, mp)
+        pre_labeled_stems = set(pre_dict.keys())
+        if pre_dict:
+            save_labels(labels, labels_path)
+            print(f"[Pre-label] 已寫入 {labels_path}（人工 Enter 即視為確認）\n")
 
     # 互動詢問起始編號
     try:
@@ -166,7 +242,8 @@ def label_images(
         # ── 取得使用者輸入 ────────────────────────────────────────────────
         while True:
             if existing:
-                prompt = f"[{i + 1}/{total_todo}] {img_path.name} [{existing}] → "
+                tag = " (模型預標)" if stem in pre_labeled_stems else ""
+                prompt = f"[{i + 1}/{total_todo}] {img_path.name} [{existing}]{tag} → "
             else:
                 prompt = f"[{i + 1}/{total_todo}] {img_path.name} → "
             try:
@@ -264,6 +341,14 @@ def main() -> None:
         "--stats", action="store_true",
         help="只顯示目前標注進度統計，不進入標注模式",
     )
+    parser.add_argument(
+        "--pre-label", action="store_true",
+        help="直接使用模型對未標注圖片做 pre-labeling（跳過詢問）",
+    )
+    parser.add_argument(
+        "--model", default=str(DEFAULT_MODEL_PATH),
+        help=f"pre-labeling 使用的模型路徑（預設：{DEFAULT_MODEL_PATH}）",
+    )
     args = parser.parse_args()
 
     img_dir = Path(args.dir)
@@ -278,7 +363,12 @@ def main() -> None:
         print_stats(labels_path, img_dir)
         return
 
-    label_images(img_dir, labels_path, start_index=args.start)
+    label_images(
+        img_dir, labels_path,
+        start_index=args.start,
+        model_path=Path(args.model),
+        pre_label=args.pre_label,
+    )
 
 
 if __name__ == "__main__":

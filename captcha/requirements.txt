@@ -1,5 +1,5 @@
-tensorflow-metal  # macOS GPU acceleration, Python ≤3.11 only
-tensorflow
+tensorflow-metal==1.2.0  # macOS GPU acceleration, Python ≤3.11 only; must match tensorflow version
+tensorflow==2.18.0
 opencv-python
 matplotlib
 scikit-learn
