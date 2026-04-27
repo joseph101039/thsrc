@@ -11,9 +11,9 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY main.py .
-COPY captcha_model.keras .
+COPY captcha_model.tflite .
 
-ENV MODEL_PATH=captcha_model.keras
+ENV MODEL_PATH=captcha_model.tflite
 ENV PORT=8080
 
 EXPOSE 8080
