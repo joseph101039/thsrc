@@ -189,9 +189,10 @@ def build_crnn(
     x = layers.Reshape((feat_w, 512), name="to_sequence")(x)
 
     # ── BiLSTM ──
-    # implementation=1: standard CPU kernel — required for TFLite conversion
-    x = layers.Bidirectional(layers.LSTM(rnn_units, return_sequences=True, dropout=0.25, implementation=1))(x)
-    x = layers.Bidirectional(layers.LSTM(rnn_units, return_sequences=True, dropout=0.25, implementation=1))(x)
+    # use_cudnn=False + unroll=True: forces standard CPU kernel and static unrolling
+    # Both are required for TFLite conversion (avoids CudnnRNNV3 and TensorListReserve)
+    x = layers.Bidirectional(layers.LSTM(rnn_units, return_sequences=True, dropout=0.25, use_cudnn=False, unroll=True))(x)
+    x = layers.Bidirectional(layers.LSTM(rnn_units, return_sequences=True, dropout=0.25, use_cudnn=False, unroll=True))(x)
 
     # ── Dense → softmax over (chars + blank) ──
     y = layers.Dense(num_classes_ctc, activation="softmax", name="ctc_logits")(x)

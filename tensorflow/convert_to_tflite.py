@@ -28,11 +28,19 @@ if not SRC.exists():
     print("請先執行：python tensorflow/train_captcha_cpu.py", file=sys.stderr)
     sys.exit(1)
 
+import os
+# Disable all GPU/Metal devices before TF initializes — forces CPU-only LSTM ops in the graph
+os.environ["CUDA_VISIBLE_DEVICES"] = ""
+os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
+
 try:
     import tensorflow as tf
 except ImportError:
     print("[錯誤] 請在 tensorflow venv 中執行：source tensorflow/.venv/bin/activate", file=sys.stderr)
     sys.exit(1)
+
+# Hide GPU after import as belt-and-suspenders
+tf.config.set_visible_devices([], "GPU")
 
 print(f"載入模型：{SRC} ...")
 model = tf.keras.models.load_model(str(SRC), compile=False)
