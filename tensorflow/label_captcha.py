@@ -20,8 +20,10 @@ label_captcha.py — 台灣高鐵驗證碼人工標注工具
 
 import argparse
 import json
+import re
 import sys
 from pathlib import Path
+from typing import Optional
 
 import cv2
 import numpy as np
@@ -29,7 +31,7 @@ import numpy as np
 # ── 字元集（與訓練腳本保持一致，去除易混淆的 I、O） ────────────────────────
 VALID_CHARS: str = "0123456789ABCDEFGHJKLMNPQRSTUVWXYZ"
 CAPTCHA_LENGTH_MIN: int = 4
-CAPTCHA_LENGTH_MAX: int = 5
+CAPTCHA_LENGTH_MAX: int = 4
 
 # ── 預設路徑 ─────────────────────────────────────────────────────────────────
 DEFAULT_IMG_DIR: Path = Path(__file__).parent / "captcha_images"
@@ -63,10 +65,16 @@ def load_existing_labels(labels_path: Path) -> dict[str, str]:
     return {}
 
 
+def _natural_sort_key(item: tuple) -> int:
+    """以 key 字串中的數字做自然排序（e.g. captcha_1000 排在 captcha_999 之後）。"""
+    m = re.search(r"(\d+)", item[0])
+    return int(m.group(1)) if m else 0
+
+
 def save_labels(labels: dict[str, str], labels_path: Path) -> None:
-    """將標注字典儲存為 JSON（以 key 排序，便於版本管理）。"""
+    """將標注字典儲存為 JSON（以自然排序 key，便於版本管理）。"""
     with open(labels_path, "w", encoding="utf-8") as f:
-        json.dump(dict(sorted(labels.items())), f, indent=2, ensure_ascii=False)
+        json.dump(dict(sorted(labels.items(), key=_natural_sort_key)), f, indent=2, ensure_ascii=False)
 
 
 def save_one_label(stem: str, value: str, labels_path: Path) -> None:
@@ -77,7 +85,7 @@ def save_one_label(stem: str, value: str, labels_path: Path) -> None:
             labels = json.load(f)
     labels[stem] = value
     with open(labels_path, "w", encoding="utf-8") as f:
-        json.dump(dict(sorted(labels.items())), f, indent=2, ensure_ascii=False)
+        json.dump(dict(sorted(labels.items(), key=_natural_sort_key)), f, indent=2, ensure_ascii=False)
 
 
 def validate_label(text: str) -> tuple[bool, str]:
@@ -149,12 +157,19 @@ def label_images(
     img_dir: Path,
     labels_path: Path,
     start_index: int = 0,
-    model_path: Path | None = None,
+    model_path: Optional[Path] = None,
     pre_label: bool = False,
 ) -> None:
     """主標注迴圈。"""
-    # 取得所有圖片並排序
-    img_files = sorted(img_dir.glob("*.jpg")) + sorted(img_dir.glob("*.png"))
+    # 取得所有圖片並排序（自然排序，確保 captcha_1000 排在 captcha_999 之後）
+    def _img_sort_key(p: Path) -> int:
+        m = re.search(r"(\d+)", p.stem)
+        return int(m.group(1)) if m else 0
+
+    img_files = sorted(
+        list(img_dir.glob("*.jpg")) + list(img_dir.glob("*.png")),
+        key=_img_sort_key,
+    )
     if not img_files:
         print(f"[錯誤] 在 {img_dir} 找不到任何 .jpg / .png 圖片", file=sys.stderr)
         sys.exit(1)
