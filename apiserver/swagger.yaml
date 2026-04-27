@@ -1,0 +1,252 @@
+openapi: 3.0.3
+
+info:
+  title: THSRC Captcha Solver API
+  description: |
+    Solves Taiwan High Speed Rail (台灣高鐵) booking captchas using a CRNN+CTC deep-learning model.
+
+    ## Model
+    - Architecture: CNN feature extractor → Bidirectional LSTM × 2 → CTC decode
+    - Input: 160 × 50 grayscale image
+    - Output: 4-character string from charset `0-9A-Z` (excluding `I` and `O`)
+    - Test accuracy: char 98.91% / string 97.10%
+
+    ## Authentication
+    No authentication required (intended for internal / GCP VPC use).
+
+    ## Deployment
+    Runs on Google Cloud Run. Set `MODEL_PATH` env var to override the model file location.
+  version: 1.0.0
+  contact:
+    name: THSRC Captcha Solver
+
+servers:
+  - url: https://captcha-solver-<hash>-uc.a.run.app
+    description: GCP Cloud Run (production)
+  - url: http://localhost:8080
+    description: Local development
+
+tags:
+  - name: Captcha
+    description: Captcha prediction endpoints
+  - name: Utility
+    description: Health check and metadata
+
+paths:
+  /health:
+    get:
+      tags: [Utility]
+      summary: Health check
+      description: Returns service status and loaded model metadata. Use this to verify the container started correctly.
+      operationId: health
+      responses:
+        "200":
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+              example:
+                status: ok
+                model: captcha_model.keras
+                input_shape: "(None, 50, 160, 1)"
+        "503":
+          description: Model not loaded yet
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /solve:
+    post:
+      tags: [Captcha]
+      summary: Solve captcha from base64 image
+      description: |
+        Accepts a base64-encoded captcha image and returns the predicted 4-character text.
+
+        - Data URI prefix (`data:image/png;base64,`) is stripped automatically.
+        - Typical inference latency: 30–80 ms on Cloud Run CPU instance.
+      operationId: solveBase64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SolveBase64Request"
+            example:
+              image: "iVBORw0KGgoAAAANSUhEUgAAAKAAAAA..."
+      responses:
+        "200":
+          description: Captcha solved successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SolveResponse"
+              example:
+                answer: A3KZ
+                confidence: [0.9991, 0.9873, 0.9512, 0.9998]
+                elapsed_ms: 42.3
+        "400":
+          description: Invalid or undecodable image
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: Model not loaded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /solve/upload:
+    post:
+      tags: [Captcha]
+      summary: Solve captcha from uploaded file
+      description: |
+        Accepts a multipart/form-data file upload and returns the predicted captcha text.
+        Useful for testing with `curl -F file=@captcha.png`.
+      operationId: solveUpload
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: Captcha image file (PNG or JPEG)
+      responses:
+        "200":
+          description: Captcha solved successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SolveResponse"
+        "400":
+          description: Invalid or undecodable image
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: Model not loaded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /solve/url:
+    post:
+      tags: [Captcha]
+      summary: Solve captcha from image URL
+      description: |
+        Downloads the image from a public URL and returns the predicted captcha text.
+        Designed for GAS / server-side integration where the THSRC captcha URL is known.
+
+        The server fetches the URL server-side (10 s timeout).
+      operationId: solveUrl
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SolveUrlRequest"
+            example:
+              url: "https://irs.thsrc.com.tw/IMINT/?action=homeCaptcha&bookreq=1"
+      responses:
+        "200":
+          description: Captcha solved successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SolveResponse"
+        "400":
+          description: Failed to fetch or decode image
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: Model not loaded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+components:
+  schemas:
+    SolveBase64Request:
+      type: object
+      required: [image]
+      properties:
+        image:
+          type: string
+          description: |
+            Base64-encoded captcha image.
+            Data URI prefix (`data:image/...;base64,`) is stripped automatically.
+          example: "iVBORw0KGgoAAAANSUhEUgAAAKAAAAA..."
+
+    SolveUrlRequest:
+      type: object
+      required: [url]
+      properties:
+        url:
+          type: string
+          format: uri
+          description: Publicly accessible URL of the captcha image.
+          example: "https://irs.thsrc.com.tw/IMINT/?action=homeCaptcha"
+
+    SolveResponse:
+      type: object
+      required: [answer, confidence, elapsed_ms]
+      properties:
+        answer:
+          type: string
+          description: Predicted 4-character captcha string.
+          minLength: 1
+          maxLength: 6
+          example: "A3KZ"
+        confidence:
+          type: array
+          items:
+            type: number
+            format: float
+            minimum: 0
+            maximum: 1
+          description: Per-character softmax confidence from the CTC decode path.
+          example: [0.9991, 0.9873, 0.9512, 0.9998]
+        elapsed_ms:
+          type: number
+          format: float
+          description: Server-side inference time in milliseconds.
+          example: 42.3
+
+    HealthResponse:
+      type: object
+      required: [status, model, input_shape]
+      properties:
+        status:
+          type: string
+          enum: [ok]
+          example: ok
+        model:
+          type: string
+          description: Path of the loaded model file.
+          example: captcha_model.keras
+        input_shape:
+          type: string
+          description: Keras model input shape string.
+          example: "(None, 50, 160, 1)"
+
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+          description: Human-readable error description.
+          example: "Invalid image: Cannot decode image — unsupported format or corrupt data"

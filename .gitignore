@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+*.egg-info/
+
+# macOS
+.DS_Store
+
+# IDE
+.idea/
+
+# Model files (large binaries — store separately)
+*.h5
+*.keras
+
+# Env
+.env
+.claude/settings.local.json
