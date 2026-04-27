@@ -3,6 +3,7 @@ const CONFIG = {
   SHEET_NAME_PASSENGERS: 'passengers',
   MAX_EXECUTION_MS: 5 * 60 * 1000, // 5 分鐘，保留 1 分鐘緩衝
   RETRY_WAIT_MINUTES: 2,            // 無可用班次或驗證碼超時時等待分鐘數
+  CAPTCHA_API_URL: 'http://35.212.154.47:8080',
 
   STATIONS: ['南港', '台北', '板橋', '桃園', '新竹', '苗栗', '台中', '彰化', '雲林', '嘉義', '台南', '左營'],
 

@@ -1,18 +1,14 @@
 const STATUS_LABEL = {
-  pending:         { text: '等待中',       cls: 'badge-pending' },
-  running:         { text: '搶票中',       cls: 'badge-running' },
-  waiting_captcha: { text: '待輸入驗證碼', cls: 'badge-waiting' },
-  success:         { text: '成功',         cls: 'badge-success' },
-  failed:          { text: '失敗',         cls: 'badge-failed'  },
+  pending: { text: '等待中', cls: 'badge-pending' },
+  running: { text: '搶票中', cls: 'badge-running' },
+  success: { text: '成功',   cls: 'badge-success' },
+  failed:  { text: '失敗',   cls: 'badge-failed'  },
 };
 
 function bookingCard(b) {
   const s = STATUS_LABEL[b.status] || { text: b.status, cls: '' };
   const scheduledInfo = b.scheduledAt
     ? `<div class="card-sub">預約時間：${b.scheduledAt}</div>`
-    : '';
-  const captchaBtn = b.status === 'waiting_captcha'
-    ? `<a href="captcha.html?id=${b.id}" class="btn btn-ghost" style="font-size:13px;padding:8px 12px;">輸入驗證碼</a>`
     : '';
   return `
     <div class="card">
@@ -25,7 +21,6 @@ function bookingCard(b) {
       ${scheduledInfo}
       <div class="card-sub">嘗試次數：${b.retryCount || 0} / ${b.maxRetries}</div>
       ${b.ticketNo ? `<div class="card-sub" style="color:var(--success);font-weight:600">訂位代號：${b.ticketNo}</div>` : ''}
-      ${captchaBtn ? `<div class="card-actions">${captchaBtn}</div>` : ''}
     </div>
   `;
 }
@@ -53,6 +48,6 @@ async function loadBookings() {
 loadBookings();
 
 setInterval(() => {
-  const hasPending = document.querySelector('.badge-running, .badge-pending, .badge-waiting');
+  const hasPending = document.querySelector('.badge-running, .badge-pending');
   if (hasPending) loadBookings();
 }, 30000);

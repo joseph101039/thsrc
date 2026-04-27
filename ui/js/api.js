@@ -16,5 +16,4 @@ const api = {
   deletePassenger:(id)            => gasCall('deletePassenger', { id }),
   getBookings:    ()              => gasCall('getBookings'),
   createBooking:  (data)          => gasCall('createBooking', { data }),
-  submitCaptcha:  (id, captcha)   => gasCall('submitCaptcha', { id, captcha }),
 };

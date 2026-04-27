@@ -1,5 +1,3 @@
-const WEB_UI_URL = 'https://joseph101039.github.io/thsrc/ui/';
-
 // 主入口：執行一次訂票嘗試
 function runBooking(bookingId) {
   const bookings = sheetToObjects(CONFIG.SHEET_NAME_BOOKINGS, CONFIG.BOOKING_COLS);
@@ -25,69 +23,39 @@ function runBooking(bookingId) {
 
     const bestTrain = selectBestTrain(trains, booking.desiredTime);
     const captchaBase64 = thsrcGetCaptcha(sessionId);
+    const captchaAnswer = solveCaptcha(captchaBase64);
+    console.log('驗證碼辨識結果：', captchaAnswer);
 
     const passengers = sheetToObjects(CONFIG.SHEET_NAME_PASSENGERS, CONFIG.PASSENGER_COLS);
     const passenger = passengers.find(p => p.id === booking.passengerId);
     if (!passenger) throw new Error('Passenger not found: ' + booking.passengerId);
 
-    PropertiesService.getScriptProperties().setProperty(
-      'session_' + bookingId,
-      JSON.stringify({
-        sessionId,
-        token,
-        trainNo: bestTrain.trainNo,
-        expireAt: Date.now() + CONFIG.RETRY_WAIT_MINUTES * 60 * 1000,
-      })
-    );
-
     updateBookingFields(bookingId, {
-      status: CONFIG.BOOKING_STATUS.WAITING_CAPTCHA,
+      status: CONFIG.BOOKING_STATUS.RUNNING,
       trainNo: bestTrain.trainNo,
     });
 
-    sendCaptchaEmail(passenger.email, bookingId, captchaBase64, WEB_UI_URL);
-    console.log('Waiting for captcha for booking:', bookingId);
+    const result = thsrcSubmitBooking(sessionId, token, {
+      trainNo: bestTrain.trainNo,
+      captcha: captchaAnswer,
+    });
+
+    if (result.success) {
+      updateBookingFields(bookingId, {
+        status: CONFIG.BOOKING_STATUS.SUCCESS,
+        ticketNo: result.ticketNo,
+      });
+      sendSuccessEmail(passenger.email, { ...booking, trainNo: bestTrain.trainNo, ticketNo: result.ticketNo }, passenger);
+      console.log('訂票成功：', bookingId, result.ticketNo);
+    } else {
+      return handleRetry(booking, bookingId, result.error);
+    }
   } catch (err) {
     console.error('runBooking error:', err.message);
     return handleRetry(booking, bookingId, err.message);
   }
 }
 
-// submitCaptcha 後繼續訂票
-function continueBookingWithCaptcha(bookingId, captcha) {
-  const props = PropertiesService.getScriptProperties();
-  const sessionJson = props.getProperty('session_' + bookingId);
-  if (!sessionJson) throw new Error('No session found for booking: ' + bookingId);
-
-  const session = JSON.parse(sessionJson);
-  props.deleteProperty('session_' + bookingId);
-
-  if (Date.now() > session.expireAt) {
-    const bookings = sheetToObjects(CONFIG.SHEET_NAME_BOOKINGS, CONFIG.BOOKING_COLS);
-    const booking = bookings.find(b => b.id === bookingId);
-    return handleRetry(booking, bookingId, '驗證碼超時，重新嘗試');
-  }
-
-  const result = thsrcSubmitBooking(session.sessionId, session.token, {
-    trainNo: session.trainNo,
-    captcha,
-  });
-
-  const bookings = sheetToObjects(CONFIG.SHEET_NAME_BOOKINGS, CONFIG.BOOKING_COLS);
-  const booking = bookings.find(b => b.id === bookingId);
-  const passengers = sheetToObjects(CONFIG.SHEET_NAME_PASSENGERS, CONFIG.PASSENGER_COLS);
-  const passenger = passengers.find(p => p.id === booking.passengerId);
-
-  if (result.success) {
-    updateBookingFields(bookingId, {
-      status: CONFIG.BOOKING_STATUS.SUCCESS,
-      ticketNo: result.ticketNo,
-    });
-    sendSuccessEmail(passenger.email, { ...booking, ticketNo: result.ticketNo }, passenger);
-  } else {
-    handleRetry(booking, bookingId, result.error);
-  }
-}
 
 function handleRetry(booking, bookingId, reason) {
   const newRetryCount = (parseInt(booking.retryCount) || 0) + 1;

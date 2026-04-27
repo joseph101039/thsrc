@@ -15,7 +15,6 @@ function doPost(e) {
       case 'deletePassenger': result = deletePassenger(body.id);              break;
       case 'createBooking':   result = createBooking(body.data);              break;
       case 'getBookings':     result = getBookings();                         break;
-      case 'submitCaptcha':   result = submitCaptcha(body.id, body.captcha);  break;
       default:
         result = { error: 'Unknown action: ' + action };
     }

@@ -1,36 +1,16 @@
-function submitCaptcha(bookingId, captcha) {
-  if (!bookingId || !captcha) {
-    return { error: 'bookingId and captcha are required' };
-  }
-
-  const bookings = sheetToObjects(CONFIG.SHEET_NAME_BOOKINGS, CONFIG.BOOKING_COLS);
-  const booking = bookings.find(b => b.id === bookingId);
-  if (!booking) return { error: 'Booking not found: ' + bookingId };
-  if (booking.status !== CONFIG.BOOKING_STATUS.WAITING_CAPTCHA) {
-    return { error: 'Booking is not waiting for captcha. Status: ' + booking.status };
-  }
-
-  try {
-    continueBookingWithCaptcha(bookingId, captcha);
-    return { success: true };
-  } catch (err) {
-    return { error: err.message };
-  }
-}
-
-function test_submitCaptcha_validation() {
-  const r1 = submitCaptcha('nonexistent-id', '1234');
-  console.log('nonexistent:', r1.error);
-
-  const id = generateId();
-  appendRow(CONFIG.SHEET_NAME_BOOKINGS, CONFIG.BOOKING_COLS, {
-    id, passengerId: 'p1', fromStation: '台北', toStation: '左營',
-    date: '2026-05-01', desiredTime: '09:00', earliestTime: '08:00',
-    latestTime: '11:00', maxRetries: 3, scheduledAt: '', status: 'running',
-    retryCount: 0, trainNo: '', ticketNo: '',
-    createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+// 呼叫驗證碼辨識 API，回傳辨識結果字串，失敗則 throw
+function solveCaptcha(captchaBase64) {
+  const res = UrlFetchApp.fetch(CONFIG.CAPTCHA_API_URL + '/solve', {
+    method: 'POST',
+    contentType: 'application/json',
+    payload: JSON.stringify({ image: captchaBase64 }),
+    muteHttpExceptions: true,
   });
-  const r2 = submitCaptcha(id, '1234');
-  console.log('wrong status:', r2.error);
-  deleteRowById(CONFIG.SHEET_NAME_BOOKINGS, id);
+  if (res.getResponseCode() !== 200) {
+    throw new Error('驗證碼 API 錯誤：' + res.getResponseCode() + ' ' + res.getContentText());
+  }
+  const data = JSON.parse(res.getContentText());
+  if (!data.answer) throw new Error('驗證碼 API 回傳格式錯誤：' + res.getContentText());
+  return data.answer;
 }
+
