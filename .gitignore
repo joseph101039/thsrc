@@ -1,4 +1,5 @@
 .superpowers/
+.worktrees/
 .idea/
 CLAUDE.local.md
 test.txt
