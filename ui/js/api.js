@@ -1,4 +1,4 @@
-const GAS_URL = 'http://35.212.154.47:8081';
+const GAS_URL = 'https://initiative-sofa-grand-correct.trycloudflare.com';
 
 async function gasCall(action, payload = {}) {
   const res = await fetch(GAS_URL, {

@@ -52,7 +52,7 @@ server/      — Node.js/Express API + scheduler
 captcha/     — CRNN+CTC captcha solver (see captcha/CLAUDE.md)
 ```
 
-**VM:** GCE e2-micro `instance-20260427-141455`, us-west1-b, IP `35.212.154.47`
+**VM:** GCE e2-micro `instance-20260427-141455`, us-west1-b, IP `35.212.154.47`, GCP project `sincere-office-494609-m3`
 **docker-compose.yml** (root) manages: captcha (8080), server (8081), scheduler
 
 ## Architecture Gotchas
