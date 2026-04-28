@@ -8,3 +8,4 @@ captcha/__pycache__
 .DS_Store
 *.log.env
 server/node_modules
+server/data/
