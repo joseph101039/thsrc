@@ -1,8 +1,9 @@
-const GAS_URL = 'https://script.google.com/macros/s/AKfycbzdtPx4EiNx01o5RDohRVfEHROdlHRBgNRPs28K7-seg899U9hY91Um3g5oz2MTDfkzig/exec';
+const GAS_URL = 'http://35.212.154.47:8081';
 
 async function gasCall(action, payload = {}) {
   const res = await fetch(GAS_URL, {
     method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ action, ...payload }),
   });
   const data = await res.json();
@@ -11,9 +12,9 @@ async function gasCall(action, payload = {}) {
 }
 
 const api = {
-  getPassengers:  ()              => gasCall('getPassengers'),
-  savePassenger:  (data)          => gasCall('savePassenger', { data }),
-  deletePassenger:(id)            => gasCall('deletePassenger', { id }),
-  getBookings:    ()              => gasCall('getBookings'),
-  createBooking:  (data)          => gasCall('createBooking', { data }),
+  getPassengers:   ()     => gasCall('getPassengers'),
+  savePassenger:   (data) => gasCall('savePassenger', { data }),
+  deletePassenger: (id)   => gasCall('deletePassenger', { id }),
+  getBookings:     ()     => gasCall('getBookings'),
+  createBooking:   (data) => gasCall('createBooking', { data }),
 };
