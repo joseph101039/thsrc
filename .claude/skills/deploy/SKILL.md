@@ -1,49 +1,30 @@
 ---
 name: deploy
-description: Deploy the captcha solver API to GCP Cloud Run. Use when shipping a new model or API changes. Requires gcloud CLI authenticated and a GCP project set up.
+description: Deploy the captcha solver API to GCP Compute Engine (GCE). Use when shipping a new model or API changes. Requires Docker (buildx) and Docker Hub access.
 disable-model-invocation: true
 ---
 
-# Deploy Captcha Solver to GCP Cloud Run
+# Deploy Captcha Solver to GCE
 
 ## Pre-flight checklist
 
-1. **Model is current** — `tensorflow/captcha_model.keras` has been trained and validated
-2. **gcloud is authenticated** — run `gcloud auth login` and `gcloud auth configure-docker` if needed
-3. **Project is set** — `gcloud config get-value project` returns the correct project ID
-
-## Copy model into apiserver
-
-```bash
-cp tensorflow/captcha_model.keras apiserver/captcha_model.keras
-```
+1. **TFLite model is current** — convert if needed: `python3 tensorflow/convert_to_tflite.py`
+2. **Docker logged in to Docker Hub** — `docker login` if needed
 
 ## Deploy
 
 ```bash
-cd apiserver
-./deploy.sh
+DOCKERHUB_USER=joseph50804 ./apiserver/deploy-gce.sh
 ```
 
-Or with explicit overrides:
-
-```bash
-cd apiserver
-PROJECT=my-gcp-project REGION=asia-east1 SERVICE=captcha-solver ./deploy.sh
-```
-
-The script uses Cloud Build (no local Docker needed). Defaults: region=`asia-east1`, 2 GB RAM, 2 vCPU, concurrency=4.
+`deploy-gce.sh` will:
+1. Copy `tensorflow/captcha_model.tflite` → `apiserver/`
+2. Build `linux/amd64` image via `docker buildx` and push to `joseph50804/captcha-solver:latest`
+3. Watchtower on the VM auto-pulls within 5 minutes — no SSH required
 
 ## Verify deployment
 
-After deploy, check the Cloud Run URL printed by the script:
-
 ```bash
-curl -X POST https://<cloud-run-url>/solve \
-  -H "Content-Type: application/json" \
-  -d '{"image": "<base64_captcha_image>"}'
+curl http://35.212.154.47:8080/health
+curl -X POST http://35.212.154.47:8080/solve/upload -F file=@captcha.png
 ```
-
-Health check endpoint: `GET /health`
-
-Swagger UI: `https://<cloud-run-url>/docs`

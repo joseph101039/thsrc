@@ -27,12 +27,16 @@ source .venv/bin/activate
 |------|------|
 | `scrape_captcha.py` | 用真實 Chrome（Selenium）從高鐵訂票頁批次截圖，儲存至 `captcha_images/` |
 | `label_captcha.py` | 人工標注工具：用 OpenCV 視窗顯示圖片，逐張輸入文字，存至 `labels.json` |
-| `train_captcha.py` | CRNN + CTC 訓練腳本：讀取 `labels.json` → 整張圖前處理 → 訓練 → 輸出 `captcha_model.keras` |
-| `predict_captcha.py` | 推論腳本：載入訓練好的模型，CTC 解碼，支援單張 / 批次 / base64 / Flask 服務 |
+| `train_captcha.py` | CRNN + CTC 訓練腳本（GPU/Metal）：輸出 `captcha_model.keras` |
+| `train_captcha_cpu.py` | CPU 版訓練腳本（`use_cudnn=False, unroll=True`）：輸出 `captcha_model_cpu.keras`，可轉 TFLite |
+| `convert_to_tflite.py` | 將 `captcha_model_cpu.keras` 轉換成 `captcha_model.tflite`，供 API 部署使用 |
+| `predict_captcha.py` | 推論腳本：載入 `.keras` 模型，CTC 解碼，支援單張 / 批次 / base64 / Flask 服務 |
+| `predict_captcha_tflite.py` | TFLite 推論腳本：批次跑整個資料集並計算準確率，驗證轉換後精度 |
 | `labels.json` | 驗證碼標注資料（`{"captcha_001": "ABCD", ...}`） |
 | `captcha_images/` | 原始驗證碼圖片目錄 |
-| `captcha_model.keras` | 訓練完成的模型（含完整 CRNN + CTC 架構） |
-| `captcha_model.h5` | 同模型的 H5 格式（僅含權重，可重建用） |
+| `captcha_model.keras` | GPU 訓練的模型（含完整 CRNN + CTC 架構） |
+| `captcha_model_cpu.keras` | CPU 訓練的模型（LSTM unroll=True，可轉 TFLite） |
+| `captcha_model.tflite` | 部署用 TFLite 模型（32 MB，不進版控） |
 | `training_log.csv` | 每個 epoch 的 loss、val_loss、val_char_acc、val_str_acc |
 | `training_history.png` | 訓練曲線視覺化 |
 
@@ -69,16 +73,29 @@ python3 label_captcha.py --stats
 ### 3. 訓練模型
 
 ```bash
+# GPU / Metal 版（macOS 本機或 Google Colab）
 python3 train_captcha.py
-
-# 指定最多 epoch 數
 python3 train_captcha.py --epochs 300
-
-# 在 Google Colab 執行
 python3 train_captcha.py --colab
+
+# CPU 版（輸出可轉 TFLite，用於 GCP 部署）
+python3 train_captcha_cpu.py
+python3 train_captcha_cpu.py --epochs 300
 ```
 
-訓練完成後輸出 `captcha_model.keras`、`captcha_model.h5` 與 `training_history.png`。
+訓練完成後輸出 `captcha_model.keras`（或 `captcha_model_cpu.keras`）、`.h5` 與 `training_history.png`。
+
+### 3b. 轉換為 TFLite（部署用）
+
+GPU 訓練的模型會烘焙 Metal/CuDNN LSTM kernel，無法直接轉 TFLite。請先以 CPU 版腳本訓練，再執行：
+
+```bash
+python3 convert_to_tflite.py
+# 輸入：captcha_model_cpu.keras
+# 輸出：captcha_model.tflite（~32 MB）
+```
+
+TFLite 模型體積小，inference 不依賴 TensorFlow，可直接供 `apiserver/` 使用。
 
 #### 模型架構（CRNN + CTC）
 
@@ -126,17 +143,17 @@ CNN 特徵萃取 → BiLSTM 序列建模 → CTC 解碼，這是 OCR 與 captcha
 
 #### 目前實測準確率
 
-690 張標注、無 IO 字元、Adam 1e-3：
+1027 張標注、無 IO 字元、Adam 1e-3：
 
-| 指標 | 數值 |
-|------|------|
-| Test char accuracy | **98.91%** |
-| Test string accuracy | **97.10%** |
-| 全資料集 char accuracy | 99.13% |
-| 全資料集 string accuracy | 96.67% |
+| 模型 | 指標 | 數值 |
+|------|------|------|
+| `.keras`（GPU 訓練） | 全資料集 char accuracy | 99.13% |
+| `.keras`（GPU 訓練） | 全資料集 string accuracy | 96.27% |
+| `_cpu.keras` → `.tflite`（CPU 訓練） | 全資料集 char accuracy | **99.75%** |
+| `_cpu.keras` → `.tflite`（CPU 訓練） | 全資料集 string accuracy | **99.12%** |
 
-> 字串準確率 ≥ 99% 通常需要 1500+ 張標注。實務上可搭配「驗證碼錯就重新請求」機制，
-> 第一次成功率 97% 等價於兩次內 99.92% 成功率，已達實用級。
+> TFLite 精度反而略優於 GPU 版，因為第三次 CPU 訓練收斂更好（val_str_acc 第 17 epoch 達 100%，epoch 48 early stop）。
+> 字串準確率 99% 搭配「錯就重試」機制，兩次內成功率達 99.99%，已達實用級。
 
 ### 4. 推論
 

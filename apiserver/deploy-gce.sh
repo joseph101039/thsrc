@@ -29,4 +29,4 @@ docker buildx build \
   "$SCRIPT_DIR"
 
 echo "[完成] 已推送 ${IMAGE}:latest"
-echo "Watchtower 將在 5 分鐘內自動更新 VM 上的容器。"
+echo "放 將在 5 分鐘內自動更新 VM 上的容器。"

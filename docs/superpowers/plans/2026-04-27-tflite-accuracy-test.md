@@ -1,6 +1,6 @@
 # TFLite Accuracy Test Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Verify that `captcha_model.tflite` (float32, no quantization) produces the same or near-identical accuracy as `captcha_model.keras` on the existing labeled dataset, before committing to the GCE TFLite deployment.
 
@@ -27,7 +27,7 @@
 
 This script loads `captcha_model.keras` and saves `captcha_model.tflite` as float32 (no quantization — preserves original accuracy).
 
-- [ ] **Step 1: Create the conversion script**
+- [x] **Step 1: Create the conversion script**
 
 ```python
 #!/usr/bin/env python3
@@ -61,7 +61,7 @@ DST.write_bytes(tflite_model)
 print(f"完成：{DST}  ({len(tflite_model) / 1e6:.1f} MB)")
 ```
 
-- [ ] **Step 2: Run conversion (requires tensorflow venv)**
+- [x] **Step 2: Run conversion (requires tensorflow venv)**
 
 ```bash
 source tensorflow/.venv/bin/activate
@@ -80,7 +80,7 @@ Verify the file was created:
 ls -lh tensorflow/captcha_model.tflite
 ```
 
-- [ ] **Step 3: Confirm `.tflite` is gitignored**
+- [x] **Step 3: Confirm `.tflite` is gitignored**
 
 ```bash
 git check-ignore -v tensorflow/captcha_model.tflite
@@ -93,7 +93,7 @@ If not ignored, add `*.tflite` to `.gitignore`:
 echo "*.tflite" >> .gitignore
 ```
 
-- [ ] **Step 4: Commit the conversion script**
+- [x] **Step 4: Commit the conversion script**
 
 ```bash
 git add tensorflow/convert_to_tflite.py
@@ -114,7 +114,7 @@ Key differences from `predict_captcha.py`:
 - Identical `preprocess_image()` and `ctc_greedy_decode_with_conf()` logic (copy verbatim — must stay in sync with training)
 - Reads `input_details` / `output_details` from the interpreter (TFLite API)
 
-- [ ] **Step 1: Install tflite-runtime in the current environment**
+- [x] **Step 1: Install tflite-runtime in the current environment**
 
 ```bash
 # Still inside tensorflow/.venv  (activated in Task 1)
@@ -131,7 +131,7 @@ except ImportError:
     from tensorflow.lite.python.interpreter import Interpreter
 ```
 
-- [ ] **Step 2: Create the script**
+- [x] **Step 2: Create the script**
 
 ```python
 #!/usr/bin/env python3
@@ -362,7 +362,7 @@ if __name__ == "__main__":
     main()
 ```
 
-- [ ] **Step 3: Commit the script**
+- [x] **Step 3: Commit the script**
 
 ```bash
 git add tensorflow/predict_captcha_tflite.py
@@ -377,7 +377,7 @@ git commit -m "feat: add TFLite batch accuracy evaluation script"
 - Read: `tensorflow/captcha_model.tflite` (generated in Task 1)
 - Read: `tensorflow/labels.json` (1,027 labeled images)
 
-- [ ] **Step 1: Run Keras baseline (original model)**
+- [x] **Step 1: Run Keras baseline (original model)**
 
 ```bash
 source tensorflow/.venv/bin/activate
@@ -389,7 +389,7 @@ python3 tensorflow/predict_captcha.py \
 
 Note the reported **字元準確率** and **全字串準確率**.
 
-- [ ] **Step 2: Run TFLite evaluation (quiet mode for clean output)**
+- [x] **Step 2: Run TFLite evaluation (quiet mode for clean output)**
 
 ```bash
 python3 tensorflow/predict_captcha_tflite.py --quiet
@@ -408,7 +408,7 @@ TFLite 模型評估結果（captcha_model.tflite）
 =======================================================
 ```
 
-- [ ] **Step 3: Compare results**
+- [x] **Step 3: Compare results**
 
 If TFLite full-string accuracy is within **±1%** of the Keras baseline, the conversion is lossless for practical purposes and the GCE deployment design is confirmed.
 
@@ -417,7 +417,7 @@ If accuracy drops more than 1%, check:
 2. The `ctc_greedy_decode_with_conf()` function is byte-for-byte identical
 3. The TFLite model was converted from the same `.keras` file that was evaluated in Step 1
 
-- [ ] **Step 4: Commit `.gitignore` update if needed**
+- [x] **Step 4: Commit `.gitignore` update if needed**
 
 If `*.tflite` is not yet in `.gitignore` (verified in Task 1 Step 3), add it now:
 
