@@ -6,4 +6,4 @@ test.txt
 captcha/.venv
 captcha/__pycache__
 .DS_Store
-*.log
+*.log.env
