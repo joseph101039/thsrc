@@ -6,7 +6,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 THSRC automated ticket-booking agent. Backend is a Node.js/Express server; frontend is vanilla HTML/CSS/JS hosted on GitHub Pages.
 
-- **Server API:** `http://35.212.154.47:8081`
+- **Server API (HTTPS):** `https://initiative-sofa-grand-correct.trycloudflare.com` (Cloudflare Quick Tunnel — URL changes on VM reboot; needs a real domain for stable URL)
+- **Server API (direct):** `http://35.212.154.47:8081`
 - **UI (GitHub Pages):** `https://joseph101039.github.io/thsrc/ui/`
 
 ## Deployment
@@ -63,7 +64,7 @@ captcha/     — CRNN+CTC captcha solver (see captcha/CLAUDE.md)
 
 **Stuck booking recovery:** Bookings stuck in `status='running'` for >10 minutes are reset to `pending` by the poller.
 
-**Hard-coded server URL:** `ui/js/api.js` has the server URL hard-coded (`http://35.212.154.47:8081`). Update manually if the IP/port changes.
+**Hard-coded server URL:** `ui/js/api.js` has the Cloudflare Tunnel URL hard-coded. Quick Tunnel URL changes on every VM reboot — to get a stable HTTPS URL, register a free domain and set up a named Cloudflare Tunnel (`cloudflared tunnel create`). Update `ui/js/api.js` manually after each URL change.
 
 **CAPTCHA auto-solve:** `booking_engine.js` POSTs base64 image to `CONFIG.CAPTCHA_API_URL + '/solve'` (`http://35.212.154.47:8080`). If the API fails or returns wrong answer, booking falls into `handleRetry`.
 
