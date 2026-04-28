@@ -59,9 +59,9 @@ Available test functions: `test_createBooking`, `test_mailer`, `test_handleRetry
 
 ## Captcha Solver Subproject (`captcha/`)
 
-The `captcha/` directory is an independent git repository (nested repo, not a submodule). It contains the CRNN+CTC captcha solver that the GAS backend calls via `CONFIG.CAPTCHA_API_URL`.
+The `captcha/` directory is part of this monorepo (merged via `git subtree`). It contains the CRNN+CTC captcha solver that the GAS backend calls via `CONFIG.CAPTCHA_API_URL`.
 
-- **Repo:** `captcha/` — see `captcha/CLAUDE.md` for full documentation
+- **Docs:** `captcha/CLAUDE.md` for full documentation
 - **Live API:** `http://35.212.154.47:8080` (GCE e2-micro, us-west1-b)
 - **Integration point:** `gas/Config.gs` → `CAPTCHA_API_URL`; `gas/Captcha.gs` → `solveCaptcha()`
 - **Deploy pipeline:** train CPU model → convert to TFLite → `DOCKERHUB_USER=joseph50804 ./captcha/apiserver/deploy-gce.sh`
