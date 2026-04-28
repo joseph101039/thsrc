@@ -9,3 +9,6 @@ captcha/__pycache__
 *.log.env
 server/node_modules
 server/data/
+docker-compose.override.yml
+.env.local
+.env
