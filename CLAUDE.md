@@ -35,11 +35,12 @@ The `gh-pages` branch serves `ui/` at `https://joseph101039.github.io/thsrc/ui/`
 docker-compose up --build
 # server → http://localhost:8081, captcha → http://localhost:8080
 
-# Point UI at local server (edit ui/js/api.js GAS_URL → http://localhost:8081), then:
-python3 -m http.server 8082 --directory ui
+# Run UI dev server (injects API_URL via env var, no file edits needed)
+cd ui && npm run dev
 # open http://localhost:8082
 ```
 
+`ui/serve.js` injects `API_URL` env var into `api.js` at request time.
 Requires `.env.local` (git-ignored) with `GMAIL_USER` and `GMAIL_APP_PASSWORD`.
 
 ## Architecture

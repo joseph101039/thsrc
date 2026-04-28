@@ -1,0 +1,8 @@
+{
+  "name": "thsrc-ui",
+  "version": "1.0.0",
+  "scripts": {
+    "dev": "API_URL=http://localhost:8081 node serve.js",
+    "start": "node serve.js"
+  }
+}
