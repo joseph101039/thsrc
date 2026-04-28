@@ -16,18 +16,18 @@ async function runBooking(bookingId) {
     const { sessionId, token } = await thsrcInit();
 
     const trains = await thsrcQueryTrains(sessionId, token, {
-      fromStation: booking.from_station,
-      toStation: booking.to_station,
+      fromStation: booking.fromStation,
+      toStation: booking.toStation,
       date: booking.date,
-      earliestTime: booking.earliest_time,
-      latestTime: booking.latest_time,
+      earliestTime: booking.earliestTime,
+      latestTime: booking.latestTime,
     });
 
     if (trains.length === 0) {
       return handleRetry(booking, '無可用班次');
     }
 
-    const bestTrain = selectBestTrain(trains, booking.desired_time);
+    const bestTrain = selectBestTrain(trains, booking.desiredTime);
     const captchaBase64 = await thsrcGetCaptcha(sessionId);
 
     const captchaRes = await fetch(CONFIG.CAPTCHA_API_URL + '/solve', {
@@ -50,7 +50,7 @@ async function runBooking(bookingId) {
         status: CONFIG.BOOKING_STATUS.SUCCESS,
         ticketNo: result.ticketNo,
       });
-      const passenger = db.getPassengerById(booking.passenger_id);
+      const passenger = db.getPassengerById(booking.passengerId);
       const updatedBooking = db.getBookingById(bookingId);
       await sendSuccessEmail(passenger.email, updatedBooking, passenger);
       console.log('訂票成功：', bookingId, result.ticketNo);
@@ -64,12 +64,12 @@ async function runBooking(bookingId) {
 }
 
 function handleRetry(booking, reason) {
-  const newRetryCount = (booking.retry_count || 0) + 1;
+  const newRetryCount = (booking.retryCount || 0) + 1;
   db.updateBookingFields(booking.id, { retryCount: newRetryCount });
 
-  if (newRetryCount >= booking.max_retries) {
+  if (newRetryCount >= booking.maxRetries) {
     db.updateBookingFields(booking.id, { status: CONFIG.BOOKING_STATUS.FAILED });
-    const passenger = db.getPassengerById(booking.passenger_id);
+    const passenger = db.getPassengerById(booking.passengerId);
     if (passenger) {
       const updatedBooking = db.getBookingById(booking.id);
       sendFailureEmail(passenger.email, updatedBooking, passenger, reason).catch(console.error);
@@ -81,7 +81,7 @@ function handleRetry(booking, reason) {
       status: CONFIG.BOOKING_STATUS.PENDING,
       scheduledAt: retryAt,
     });
-    console.log('Scheduled retry', newRetryCount, '/', booking.max_retries, 'for booking:', booking.id);
+    console.log('Scheduled retry', newRetryCount, '/', booking.maxRetries, 'for booking:', booking.id);
   }
 }
 

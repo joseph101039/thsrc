@@ -69,17 +69,18 @@ async function submitBooking() {
   btn.disabled = true;
   btn.textContent = '送出中...';
 
-  // fire-and-forget：GAS Web App 在 poller 執行期間會 block，不等回應直接跳轉
-  api.createBooking({
-    passengerId, fromStation, toStation, date,
-    desiredTime, earliestTime, latestTime,
-    maxRetries, scheduledAt,
-  }).catch(() => {});
-
-  // 給 GAS 1 秒開始處理後跳轉（poller 空閒時 appendRow 很快）
-  setTimeout(() => {
+  try {
+    await api.createBooking({
+      passengerId, fromStation, toStation, date,
+      desiredTime, earliestTime, latestTime,
+      maxRetries, scheduledAt,
+    });
     location.href = 'index.html';
-  }, 1000);
+  } catch (err) {
+    alert('送出失敗：' + err.message);
+    btn.disabled = false;
+    btn.textContent = '確認送出';
+  }
 }
 
 // 日期預設為明天

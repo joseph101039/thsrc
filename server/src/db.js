@@ -49,10 +49,22 @@ function _initSchema(db) {
   `);
 }
 
+// ── snake_case → camelCase ────────────────────────────────────
+
+function _toCamel(row) {
+  if (!row) return row;
+  const out = {};
+  for (const [k, v] of Object.entries(row)) {
+    const camel = k.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
+    out[camel] = v;
+  }
+  return out;
+}
+
 // ── Passengers ──────────────────────────────────────────────
 
 function getPassengers() {
-  return getDb().prepare('SELECT * FROM passengers').all();
+  return getDb().prepare('SELECT * FROM passengers').all().map(_toCamel);
 }
 
 function savePassenger({ id, name, idNumber, type, email }) {
@@ -78,7 +90,7 @@ function deletePassenger(id) {
 // ── Bookings ─────────────────────────────────────────────────
 
 function getBookings() {
-  return getDb().prepare('SELECT * FROM bookings ORDER BY created_at DESC').all();
+  return getDb().prepare('SELECT * FROM bookings ORDER BY created_at DESC').all().map(_toCamel);
 }
 
 function createBooking({ passengerId, fromStation, toStation, date, desiredTime, earliestTime, latestTime, maxRetries, scheduledAt }) {
@@ -111,28 +123,28 @@ function updateBookingFields(id, fields) {
 }
 
 function getBookingById(id) {
-  return getDb().prepare('SELECT * FROM bookings WHERE id=?').get(id);
+  return _toCamel(getDb().prepare('SELECT * FROM bookings WHERE id=?').get(id));
 }
 
 function getPassengerById(id) {
-  return getDb().prepare('SELECT * FROM passengers WHERE id=?').get(id);
+  return _toCamel(getDb().prepare('SELECT * FROM passengers WHERE id=?').get(id));
 }
 
 function getPendingBookings() {
-  return getDb().prepare(`
+  return _toCamel(getDb().prepare(`
     SELECT * FROM bookings
     WHERE status = 'pending'
       AND (scheduled_at IS NULL OR scheduled_at <= ?)
     ORDER BY created_at ASC
     LIMIT 1
-  `).get(new Date().toISOString());
+  `).get(new Date().toISOString()));
 }
 
 function getStuckRunningBookings() {
   const cutoff = new Date(Date.now() - 10 * 60 * 1000).toISOString();
   return getDb().prepare(`
     SELECT * FROM bookings WHERE status = 'running' AND updated_at < ?
-  `).all(cutoff);
+  `).all(cutoff).map(_toCamel);
 }
 
 module.exports = {
