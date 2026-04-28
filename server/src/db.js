@@ -122,6 +122,11 @@ function updateBookingFields(id, fields) {
   getDb().prepare(`UPDATE bookings SET ${setClauses} WHERE id = ?`).run(...values, id);
 }
 
+function deleteBooking(id) {
+  getDb().prepare('DELETE FROM bookings WHERE id=?').run(id);
+  return { success: true };
+}
+
 function getBookingById(id) {
   return _toCamel(getDb().prepare('SELECT * FROM bookings WHERE id=?').get(id));
 }
@@ -149,7 +154,7 @@ function getStuckRunningBookings() {
 
 module.exports = {
   getPassengers, savePassenger, deletePassenger,
-  getBookings, createBooking, updateBookingFields,
+  getBookings, createBooking, updateBookingFields, deleteBooking,
   getBookingById, getPassengerById,
   getPendingBookings, getStuckRunningBookings,
 };

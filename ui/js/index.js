@@ -10,8 +10,12 @@ function bookingCard(b) {
   const scheduledInfo = b.scheduledAt
     ? `<div class="card-sub">預約時間：${b.scheduledAt}</div>`
     : '';
+  const canDelete = b.status === 'success' || b.status === 'failed';
+  const deleteBtn = canDelete
+    ? `<button class="btn btn-danger" style="padding:6px 14px;font-size:13px" onclick="deleteBooking('${b.id}')">刪除</button>`
+    : '';
   return `
-    <div class="card">
+    <div class="card" id="booking-${b.id}">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">
         <div class="card-title">${b.fromStation} → ${b.toStation}</div>
         <span class="badge ${s.cls}">${s.text}</span>
@@ -21,8 +25,19 @@ function bookingCard(b) {
       ${scheduledInfo}
       <div class="card-sub">嘗試次數：${b.retryCount || 0} / ${b.maxRetries}</div>
       ${b.ticketNo ? `<div class="card-sub" style="color:var(--success);font-weight:600">訂位代號：${b.ticketNo}</div>` : ''}
+      ${deleteBtn ? `<div class="card-actions">${deleteBtn}</div>` : ''}
     </div>
   `;
+}
+
+async function deleteBooking(id) {
+  if (!confirm('確定刪除這筆訂票紀錄？')) return;
+  try {
+    await api.deleteBooking(id);
+    document.getElementById('booking-' + id).remove();
+  } catch (err) {
+    alert('刪除失敗：' + err.message);
+  }
 }
 
 async function loadBookings() {

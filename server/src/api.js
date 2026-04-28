@@ -23,6 +23,7 @@ app.post('/', (req, res) => {
       case 'deletePassenger': result = db.deletePassenger(id);               break;
       case 'getBookings':     result = { bookings: db.getBookings() };       break;
       case 'createBooking':   result = db.createBooking(data);               break;
+      case 'deleteBooking':   result = db.deleteBooking(id);                 break;
       default:
         return res.status(400).json({ error: 'Unknown action: ' + action });
     }

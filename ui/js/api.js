@@ -17,4 +17,5 @@ const api = {
   deletePassenger: (id)   => gasCall('deletePassenger', { id }),
   getBookings:     ()     => gasCall('getBookings'),
   createBooking:   (data) => gasCall('createBooking', { data }),
+  deleteBooking:   (id)   => gasCall('deleteBooking', { id }),
 };
