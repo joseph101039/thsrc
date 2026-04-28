@@ -8,22 +8,17 @@ THSRC automated ticket-booking agent. Backend is Google Apps Script (GAS) V8 run
 
 - **GAS Script ID:** `1_vh44nd0AjNMYm3czo-XXUM6rB_BF42sWsLY95TMmuc1asw_terZmpL8`
 - **Google Sheet ID:** `1oFh2T6MzB7KMokpsBBTThdyLzxbAhT0Xlo4exFXyEuA`
-- **GAS Web App URL (current):** `https://script.google.com/macros/s/AKfycbx1uVUZpBU2OgkUUph625275GDvMgHmA724RLUpyFt-v6I-Bju3mPDeGPktSJAgap1gQQ/exec`
+- **GAS Web App URL (current):** `https://script.google.com/macros/s/AKfycbzdtPx4EiNx01o5RDohRVfEHROdlHRBgNRPs28K7-seg899U9hY91Um3g5oz2MTDfkzig/exec`
 - **UI (GitHub Pages):** `https://joseph101039.github.io/thsrc/ui/`
 
 ## Deployment
 
 ### GAS backend
 ```bash
-cd gas
-clasp push --force
+cd gas && clasp push --force
 ```
-After pushing, if the Web App URL needs to change or CORS settings need updating, the user must **manually create a new deployment** in the GAS Editor (Deploy → New deployment → Web App → "所有人"). `clasp deploy` cannot set access permissions.
 
-To update an existing deployment without changing the URL:
-```bash
-clasp deploy --deploymentId "<existing-id>" --description "description"
-```
+The deployment (`AKfycbzdtPx4EiNx01o5RDohRVfEHROdlHRBgNRPs28K7-seg899U9hY91Um3g5oz2MTDfkzig`) is configured to always execute the latest pushed code. **Never run `clasp deploy`** — it resets access permissions to "only me" and breaks the public URL.
 
 ### UI frontend
 ```bash
@@ -40,7 +35,7 @@ python3 -m http.server 8080 --directory ui
 
 ## Architecture Gotchas
 
-**Async booking execution:** `createBooking` must never call `runBooking()` synchronously in `doPost` — GAS HTTP requests to THSRC will time out the 5-minute execution window. Always use `scheduleBooking(id, new Date(Date.now() + 3000))` for immediate bookings.
+**Async booking execution:** `createBooking` must never call `runBooking()` synchronously — it causes doPost to time out before GAS can return a response. Immediate bookings use `scheduleBooking(id, new Date(Date.now() + 10000))` (triggers fire within ~1 minute on free tier). Scheduled bookings use the user-specified time.
 
 **Trigger state via ScriptProperties:** GAS time-based triggers can't pass parameters. `bookingId` is stored in ScriptProperties keyed as `'trigger_' + triggerId` and read by `resumeBookingTrigger()`.
 
@@ -61,6 +56,17 @@ No automated test runner. Test functions (`test_*`) in each `.gs` file must be r
 - Via clasp: `clasp run test_createBooking` (requires OAuth setup)
 
 Available test functions: `test_createBooking`, `test_mailer`, `test_handleRetry` (check each `.gs` file).
+
+## Captcha Solver Subproject (`captcha/`)
+
+The `captcha/` directory is an independent git repository (nested repo, not a submodule). It contains the CRNN+CTC captcha solver that the GAS backend calls via `CONFIG.CAPTCHA_API_URL`.
+
+- **Repo:** `captcha/` — see `captcha/CLAUDE.md` for full documentation
+- **Live API:** `http://35.212.154.47:8080` (GCE e2-micro, us-west1-b)
+- **Integration point:** `gas/Config.gs` → `CAPTCHA_API_URL`; `gas/Captcha.gs` → `solveCaptcha()`
+- **Deploy pipeline:** train CPU model → convert to TFLite → `DOCKERHUB_USER=joseph50804 ./captcha/apiserver/deploy-gce.sh`
+
+When making changes that affect the captcha API contract (endpoint paths, request/response schema), update both `captcha/` and `gas/Captcha.gs` together. The GAS side calls `POST /solve` with `{"image": "<base64>"}`.
 
 ## Code Style
 

@@ -14,32 +14,25 @@ function createBooking(data) {
   const id = generateId();
 
   appendRow(CONFIG.SHEET_NAME_BOOKINGS, CONFIG.BOOKING_COLS, {
-    id,
-    passengerId,
-    fromStation,
-    toStation,
-    date,
-    desiredTime,
-    earliestTime,
-    latestTime,
-    maxRetries: maxRetries || 10,
-    scheduledAt: scheduledAt || '',
-    status: CONFIG.BOOKING_STATUS.PENDING,
-    retryCount: 0,
-    trainNo: '',
-    ticketNo: '',
-    createdAt: now,
-    updatedAt: now,
+    id, passengerId, fromStation, toStation, date,
+    desiredTime, earliestTime, latestTime,
+    maxRetries: maxRetries || 10, scheduledAt: scheduledAt || '',
+    status: CONFIG.BOOKING_STATUS.PENDING, retryCount: 0,
+    trainNo: '', ticketNo: '', createdAt: now, updatedAt: now,
   });
 
   if (scheduledAt) {
     scheduleBooking(id, new Date(scheduledAt));
-  } else {
-    // 立即訂票：用觸發器非同步執行，避免 doPost 超時
-    scheduleBooking(id, new Date(Date.now() + 3000));
   }
 
   return { success: true, id };
+}
+
+function test_clearAllBookings() {
+  const sheet = getSheet(CONFIG.SHEET_NAME_BOOKINGS);
+  const lastRow = sheet.getLastRow();
+  if (lastRow > 1) sheet.deleteRows(2, lastRow - 1);
+  console.log('Cleared all bookings');
 }
 
 function test_createBooking() {

@@ -14,10 +14,26 @@ function sheetToObjects(sheetName, colsMap) {
   const sheet = getSheet(sheetName);
   const rows = sheet.getDataRange().getValues();
   if (rows.length <= 1) return [];
-  return rows.slice(1).map(row => {
+  return rows.slice(1).filter(row => row[0] !== '' && row[0] !== null).map(row => {
     const obj = {};
     Object.entries(colsMap).forEach(([key, idx]) => {
-      obj[toCamelCase(key)] = row[idx] === '' ? null : row[idx];
+      const val = row[idx];
+      if (val === '' || val === null || val === undefined) {
+        obj[toCamelCase(key)] = null;
+      } else if (val instanceof Date) {
+        // 依欄位名稱決定輸出格式
+        if (key === 'DATE') {
+          // YYYY-MM-DD（以台北時區）
+          obj[toCamelCase(key)] = Utilities.formatDate(val, 'Asia/Taipei', 'yyyy-MM-dd');
+        } else if (key.endsWith('_TIME') || key === 'DESIRED_TIME') {
+          // HH:mm
+          obj[toCamelCase(key)] = Utilities.formatDate(val, 'Asia/Taipei', 'HH:mm');
+        } else {
+          obj[toCamelCase(key)] = val.toISOString();
+        }
+      } else {
+        obj[toCamelCase(key)] = val;
+      }
     });
     return obj;
   });
