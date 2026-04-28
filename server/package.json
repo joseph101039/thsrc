@@ -5,7 +5,8 @@
   "main": "src/api.js",
   "scripts": {
     "start": "node --experimental-sqlite src/api.js",
-    "scheduler": "node --experimental-sqlite src/scheduler.js"
+    "scheduler": "node --experimental-sqlite src/scheduler.js",
+    "test": "node --experimental-sqlite --test test/*.test.js"
   },
   "dependencies": {
     "cors": "^2.8.5",

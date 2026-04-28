@@ -12,6 +12,10 @@ THSRC automated ticket-booking agent. Backend is a Node.js/Express server; front
 
 ## Deployment
 
+本地 docker-compose 主要用於開發測試，必須本地整合測試過沒問題才可以部署正式環境。
+
+生產環境部署使用以下流程：
+
 ### Node.js server
 
 ```bash
@@ -78,9 +82,13 @@ captcha/     — CRNN+CTC captcha solver (see captcha/CLAUDE.md)
 
 ## Testing
 
-No automated test runner. Test manually:
-
 ```bash
+# 邏輯單元測試（不需要網路，本機可跑）
+cd server && npm test
+
+# 網路整合測試（需要台灣 IP 才能連高鐵網站）
+cd server && RUN_NETWORK_TESTS=1 npm test
+
 # Health check
 curl http://35.212.154.47:8081/
 
@@ -89,6 +97,16 @@ cd server && node --experimental-sqlite src/api.js
 curl -X POST http://localhost:8081/ -H 'Content-Type: application/json' \
   -d '{"action":"getPassengers"}'
 ```
+
+## 重要：高鐵網站封鎖境外 IP
+
+`irs.thsrc.com.tw` 封鎖了台灣境外 IP（包括 GCE us-west1、一般海外 VPS）。
+**scheduler 必須部署在台灣 IP 的機器上才能實際搶票。**
+
+目前 VM (GCE us-west1) 只能處理 API/資料庫，無法執行訂票動作。
+選項：
+- 台灣 VPS（Hinet、CHT、AWS ap-northeast-1 部分 IP）
+- 本機跑 scheduler：`cd server && node --experimental-sqlite src/scheduler.js`
 
 ## Captcha Solver (`captcha/`)
 
