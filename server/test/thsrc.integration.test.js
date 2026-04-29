@@ -3,6 +3,7 @@
 const { test, skip } = require('node:test');
 const assert = require('node:assert/strict');
 const { thsrcInit, thsrcGetCaptcha, thsrcQueryTrains, parseTrainOptions, selectBestTrain } = require('../src/thsrc');
+const fetch = require('node-fetch');
 
 // 取明天日期（高鐵只能訂未來車票）
 function tomorrow() {
@@ -17,31 +18,44 @@ const runNetwork = process.env.RUN_NETWORK_TESTS === '1'
   ? test
   : (name, fn) => skip(name, { skip: '需設定 RUN_NETWORK_TESTS=1 且能連到高鐵網站' });
 
-runNetwork('thsrcInit：可連線高鐵網站並取得 sessionId 和 token', async () => {
-  const { sessionId, token } = await thsrcInit();
+runNetwork('thsrcInit：可連線高鐵網站並取得 sessionId 和 formAction', async () => {
+  const { sessionId, formAction } = await thsrcInit();
   assert.ok(sessionId, '應取得 JSESSIONID');
-  assert.ok(token, '應取得 BookingS1Form token');
+  assert.ok(formAction, '應取得 Wicket form action URL');
+  assert.ok(formAction.includes('BookingS1Form'), 'formAction 應包含 BookingS1Form');
   console.log('  sessionId:', sessionId.slice(0, 12) + '...');
-  console.log('  token:', token.slice(0, 20) + '...');
+  console.log('  formAction:', formAction.slice(0, 60) + '...');
 });
 
 runNetwork('thsrcGetCaptcha：可取得 base64 驗證碼圖片', async () => {
-  const { sessionId } = await thsrcInit();
-  const base64 = await thsrcGetCaptcha(sessionId);
+  const { cookieJar, captchaUrl } = await thsrcInit();
+  const base64 = await thsrcGetCaptcha(cookieJar, captchaUrl);
   assert.ok(base64.length > 100, '應回傳有內容的 base64 字串');
   // PNG header in base64 starts with 'iVBORw0KGgo'
   assert.ok(base64.startsWith('iVBORw0KGgo'), '應為有效的 PNG base64');
   console.log('  captcha base64 長度:', base64.length);
 });
 
-runNetwork('thsrcQueryTrains：可查詢台北→左營明天班次', async () => {
-  const { sessionId, token } = await thsrcInit();
-  const trains = await thsrcQueryTrains(sessionId, token, {
+runNetwork('thsrcQueryTrains：可查詢台北→左營明天班次（需驗證碼）', async () => {
+  const { cookieJar, formAction, captchaUrl } = await thsrcInit();
+  const captchaBase64 = await thsrcGetCaptcha(cookieJar, captchaUrl);
+
+  // Use captcha API to solve (requires captcha server running)
+  const CONFIG = require('../src/config');
+  const captchaRes = await fetch(CONFIG.CAPTCHA_API_URL + '/solve', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ image: captchaBase64 }),
+  });
+  const { answer: captchaAnswer } = await captchaRes.json();
+
+  const { trains } = await thsrcQueryTrains(cookieJar, formAction, {
     fromStation: '台北',
     toStation: '左營',
     date: tomorrow(),
     earliestTime: '08:00',
     latestTime: '20:00',
+    captcha: captchaAnswer,
   });
   assert.ok(Array.isArray(trains), '應回傳陣列');
   assert.ok(trains.length > 0, '台北→左營應有可用班次');
@@ -55,18 +69,17 @@ runNetwork('thsrcQueryTrains：可查詢台北→左營明天班次', async () =
 // ── 純邏輯測試（不需要網路）──────────────────────────────────
 
 test('parseTrainOptions：正確過濾時間區間', () => {
-  // 模擬高鐵 HTML 的真實格式：radio input + label 包含出發/到達時間
+  // 實際高鐵 HTML 格式：<input QueryDeparture="HH:MM" QueryArrival="HH:MM" QueryCode="NNN"
+  //   name="TrainQueryDataViewPanel:TrainGroup" ... value="radioNN">
   const fakeHtml = `
-    <input type="radio" value="0610A" name="TrainQueryDataViewPanel:TrainGroup" id="r1">
-    <label for="r1">06:10出發 09:00抵達 自強號</label>
-    <input type="radio" value="1030B" name="TrainQueryDataViewPanel:TrainGroup" id="r2">
-    <label for="r2">10:30出發 13:00抵達 自強號</label>
-    <input type="radio" value="2200C" name="TrainQueryDataViewPanel:TrainGroup" id="r3">
-    <label for="r3">22:00出發 01:00抵達 自強號</label>
+    <input QueryDeparture="06:10" QueryArrival="09:00" QueryCode="101" type="radio" value="radio1" name="TrainQueryDataViewPanel:TrainGroup" class="uk-radio">
+    <input QueryDeparture="10:30" QueryArrival="13:00" QueryCode="205" type="radio" value="radio2" name="TrainQueryDataViewPanel:TrainGroup" class="uk-radio">
+    <input QueryDeparture="22:00" QueryArrival="01:00" QueryCode="609" type="radio" value="radio3" name="TrainQueryDataViewPanel:TrainGroup" class="uk-radio">
   `;
   const trains = parseTrainOptions(fakeHtml, '09:00', '15:00');
   assert.equal(trains.length, 1, '只有 10:30 在 09:00~15:00 區間內');
-  assert.equal(trains[0].trainNo, '1030B');
+  assert.equal(trains[0].trainNo, '205');
+  assert.equal(trains[0].radioValue, 'radio2');
   assert.equal(trains[0].departTime, '10:30');
   assert.equal(trains[0].arriveTime, '13:00');
 });

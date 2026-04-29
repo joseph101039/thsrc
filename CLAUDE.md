@@ -50,6 +50,7 @@ Requires `.env.local` (git-ignored) with `GMAIL_USER` and `GMAIL_APP_PASSWORD`.
 ## Architecture
 
 ```
+docs/flowchart.md — system architecture and data flow diagram, 修改流程時請更新此圖
 ui/          — vanilla HTML/CSS/JS frontend (GitHub Pages)
 server/      — Node.js/Express API + scheduler
   src/
@@ -98,21 +99,41 @@ curl -X POST http://localhost:8081/ -H 'Content-Type: application/json' \
   -d '{"action":"getPassengers"}'
 ```
 
-## 重要：高鐵網站封鎖境外 IP
+## 重要：高鐵網站的 WAF 防護
 
-`irs.thsrc.com.tw` 封鎖了台灣境外 IP（包括 GCE us-west1、一般海外 VPS）。
-**scheduler 必須部署在台灣 IP 的機器上才能實際搶票。**
+`irs.thsrc.com.tw` 使用 Akamai WAF，需要完整的 Chrome browser headers 才能連線。
+`thsrc.js` 已加入 `BROWSER_HEADERS` 常數（User-Agent、sec-ch-ua、Sec-Fetch-*、**Connection: keep-alive** 等），node-fetch 即可正常連線，不需要 Playwright。
 
-目前 VM (GCE us-west1) 只能處理 API/資料庫，無法執行訂票動作。
-選項：
-- 台灣 VPS（Hinet、CHT、AWS ap-northeast-1 部分 IP）
-- 本機跑 scheduler：`cd server && node --experimental-sqlite src/scheduler.js`
+**必要 header：** `Connection: keep-alive` 是關鍵，缺少此 header 連線會 timeout（Akamai 不回應）。
+
+**必要 cookie：** `thsrcInit()` 初始連線時，Akamai 會在 `Set-Cookie` 回傳多組防護 cookie（`_abck`、`bm_sz`、`bm_sv`、`ak_bmsc`、`TS01*`、`IRS-SESSION`、`THSRC-IRS` 等）。後續所有請求必須帶**完整 cookie jar**，只帶 `JSESSIONID` 會被 WAF 攔截（回傳 HTML 而非圖片）。
+
+
+### 驗證高鐵連線是否正常（用 curl）
+
+```bash
+curl --location 'https://irs.thsrc.com.tw/IMINT/' \
+  --header 'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7' \
+  --header 'Accept-Language: zh-TW,zh;q=0.9' \
+  --header 'Connection: keep-alive' \
+  --header 'Sec-Fetch-Dest: document' \
+  --header 'Sec-Fetch-Mode: navigate' \
+  --header 'Sec-Fetch-Site: none' \
+  --header 'Sec-Fetch-User: ?1' \
+  --header 'Upgrade-Insecure-Requests: 1' \
+  --header 'User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36' \
+  --header 'sec-ch-ua: "Google Chrome";v="147", "Not.A/Brand";v="8", "Chromium";v="147"' \
+  --header 'sec-ch-ua-mobile: ?0' \
+  --header 'sec-ch-ua-platform: "macOS"'
+```
+
+成功回應會包含 `BookingS1Form` 表單與驗證碼 `<img src="/IMINT/?wicket:interface=...passCode...">` 。
 
 ## Captcha Solver (`captcha/`)
 
 The `captcha/` directory is part of this monorepo (merged via `git subtree`). See `captcha/CLAUDE.md` for full documentation.
 
-- **Live API:** `http://35.212.154.47:8080`
+- **Live API:**  `https://api.joseph101039.uk/` (also http://35.212.154.47:8080)
 - **Deploy:** `DOCKERHUB_USER=joseph50804 ./captcha/apiserver/deploy-gce.sh`
 - **Integration:** `server/src/config.js` → `CAPTCHA_API_URL`; `server/src/booking_engine.js` → POST `/solve`
 
@@ -121,3 +142,4 @@ The `captcha/` directory is part of this monorepo (merged via `git subtree`). Se
 - All user-facing strings and comments are in Traditional Chinese (繁體中文)
 - Node.js uses CommonJS (`require`/`module.exports`)
 - No linter or formatter configured
+- each API should has error console logs 

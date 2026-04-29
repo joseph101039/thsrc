@@ -16,15 +16,20 @@ schedule.scheduleJob('* * * * *', async () => {
 });
 
 async function pollPendingBookings() {
+  const now = new Date().toISOString();
+  console.log(`[${now}] poll`);
+
   const stuck = db.getStuckRunningBookings();
   for (const b of stuck) {
-    console.log('Resetting stuck booking:', b.id);
+    console.log(`  [stuck] reset booking ${b.id}`);
     db.updateBookingFields(b.id, { status: CONFIG.BOOKING_STATUS.PENDING });
   }
 
   const next = db.getPendingBookings();
   if (next) {
-    console.log('Polling: running booking', next.id);
+    console.log(`  [run] bookingId=${next.id} ${next.fromStation}→${next.toStation} ${next.date} ${next.earliestTime}~${next.latestTime} retry=${next.retryCount}/${next.maxRetries}`);
     await runBooking(next.id);
+  } else {
+    console.log('  [idle] no pending bookings');
   }
 }

@@ -15,6 +15,7 @@ function getDb() {
   _db = new DatabaseSync(dbPath);
   _db.exec('PRAGMA journal_mode = WAL');
   _initSchema(_db);
+  _migrate(_db);
   return _db;
 }
 
@@ -25,7 +26,8 @@ function _initSchema(db) {
       name       TEXT NOT NULL,
       id_number  TEXT NOT NULL,
       type       TEXT NOT NULL,
-      email      TEXT NOT NULL
+      email      TEXT NOT NULL,
+      phone      TEXT NOT NULL DEFAULT ''
     );
 
     CREATE TABLE IF NOT EXISTS bookings (
@@ -49,6 +51,14 @@ function _initSchema(db) {
   `);
 }
 
+function _migrate(db) {
+  // passengers.phone — 既有 DB 沒有此欄位時自動補上
+  const cols = db.prepare("PRAGMA table_info(passengers)").all().map(r => r.name);
+  if (!cols.includes('phone')) {
+    db.exec("ALTER TABLE passengers ADD COLUMN phone TEXT NOT NULL DEFAULT ''");
+  }
+}
+
 // ── snake_case → camelCase ────────────────────────────────────
 
 function _toCamel(row) {
@@ -67,18 +77,19 @@ function getPassengers() {
   return getDb().prepare('SELECT * FROM passengers').all().map(_toCamel);
 }
 
-function savePassenger({ id, name, idNumber, type, email }) {
+function savePassenger({ id, name, idNumber, type, email, phone }) {
   const db = getDb();
+  const phoneVal = phone || '';
   if (id) {
     db.prepare(
-      'UPDATE passengers SET name=?, id_number=?, type=?, email=? WHERE id=?'
-    ).run(name, idNumber, type, email, id);
+      'UPDATE passengers SET name=?, id_number=?, type=?, email=?, phone=? WHERE id=?'
+    ).run(name, idNumber, type, email, phoneVal, id);
     return { success: true, id };
   }
   const newId = uuidv4();
   db.prepare(
-    'INSERT INTO passengers (id, name, id_number, type, email) VALUES (?, ?, ?, ?, ?)'
-  ).run(newId, name, idNumber, type, email);
+    'INSERT INTO passengers (id, name, id_number, type, email, phone) VALUES (?, ?, ?, ?, ?, ?)'
+  ).run(newId, name, idNumber, type, email, phoneVal);
   return { success: true, id: newId };
 }
 
