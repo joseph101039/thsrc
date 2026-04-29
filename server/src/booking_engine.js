@@ -4,7 +4,6 @@ const fetch = require('node-fetch');
 const CONFIG = require('./config');
 const db = require('./db');
 const { thsrcInit, thsrcGetCaptcha, thsrcQueryTrains, thsrcSubmitBooking, selectBestTrain } = require('./thsrc');
-const { sendSuccessEmail, sendFailureEmail } = require('./mailer');
 
 const BOOKING_TIMEOUT_MS = 120000;
 
@@ -81,8 +80,7 @@ async function _doBooking(bookingId, booking) {
       status: CONFIG.BOOKING_STATUS.SUCCESS,
       ticketNo: result.ticketNo,
     });
-    const updatedBooking = db.getBookingById(bookingId);
-    await sendSuccessEmail(passenger.email, updatedBooking, passenger);
+    db.createBookingAttempt({ bookingId, success: true, reason: null });
     console.log('  [done] 訂票成功：', bookingId, result.ticketNo);
   } else {
     return handleRetry(booking, result.error);
@@ -92,14 +90,10 @@ async function _doBooking(bookingId, booking) {
 function handleRetry(booking, reason) {
   const newRetryCount = (booking.retryCount || 0) + 1;
   db.updateBookingFields(booking.id, { retryCount: newRetryCount });
+  db.createBookingAttempt({ bookingId: booking.id, success: false, reason });
 
   if (newRetryCount >= booking.maxRetries) {
     db.updateBookingFields(booking.id, { status: CONFIG.BOOKING_STATUS.FAILED });
-    const passenger = db.getPassengerById(booking.passengerId);
-    if (passenger) {
-      const updatedBooking = db.getBookingById(booking.id);
-      sendFailureEmail(passenger.email, updatedBooking, passenger, reason).catch(console.error);
-    }
     console.log('Booking failed after max retries:', booking.id);
   } else {
     const retryAt = new Date(Date.now() + CONFIG.RETRY_WAIT_MINUTES * 60 * 1000).toISOString();
