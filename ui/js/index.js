@@ -1,3 +1,13 @@
+function formatTW(isoStr) {
+  if (!isoStr) return '';
+  return new Date(isoStr).toLocaleString('zh-TW', {
+    timeZone: 'Asia/Taipei',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit',
+    hour12: false,
+  });
+}
+
 const STATUS_LABEL = {
   pending: { text: '等待中', cls: 'badge-pending' },
   running: { text: '搶票中', cls: 'badge-running' },
@@ -8,14 +18,14 @@ const STATUS_LABEL = {
 function bookingCard(b) {
   const s = STATUS_LABEL[b.status] || { text: b.status, cls: '' };
   const scheduledInfo = b.scheduledAt
-    ? `<div class="card-sub">預約時間：${b.scheduledAt}</div>`
+    ? `<div class="card-sub">預約時間：${formatTW(b.scheduledAt)}</div>`
     : '';
   const canDelete = b.status === 'success' || b.status === 'failed';
   const deleteBtn = canDelete
-    ? `<button class="btn btn-danger" style="padding:6px 14px;font-size:13px" onclick="deleteBooking('${b.id}')">刪除</button>`
+    ? `<button class="btn btn-danger" style="padding:6px 14px;font-size:13px" onclick="event.stopPropagation();deleteBooking('${b.id}')">刪除</button>`
     : '';
   return `
-    <div class="card" id="booking-${b.id}">
+    <div class="card" id="booking-${b.id}" style="cursor:pointer" onclick="location.href='booking-detail.html?id=${b.id}'">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">
         <div class="card-title">${b.fromStation} → ${b.toStation}</div>
         <span class="badge ${s.cls}">${s.text}</span>

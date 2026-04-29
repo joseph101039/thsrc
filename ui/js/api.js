@@ -12,10 +12,11 @@ async function gasCall(action, payload = {}) {
 }
 
 const api = {
-  getPassengers:   ()     => gasCall('getPassengers'),
-  savePassenger:   (data) => gasCall('savePassenger', { data }),
-  deletePassenger: (id)   => gasCall('deletePassenger', { id }),
-  getBookings:     ()     => gasCall('getBookings'),
-  createBooking:   (data) => gasCall('createBooking', { data }),
-  deleteBooking:   (id)   => gasCall('deleteBooking', { id }),
+  getPassengers:      ()     => gasCall('getPassengers'),
+  savePassenger:      (data) => gasCall('savePassenger', { data }),
+  deletePassenger:    (id)   => gasCall('deletePassenger', { id }),
+  getBookings:        ()     => gasCall('getBookings'),
+  createBooking:      (data) => gasCall('createBooking', { data }),
+  deleteBooking:      (id)   => gasCall('deleteBooking', { id }),
+  getBookingAttempts: (id)   => gasCall('getBookingAttempts', { id }),
 };
