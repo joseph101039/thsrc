@@ -1,11 +1,19 @@
-建立一個代理使用者定票台灣高鐵訂的網站
+建立一個代理使用者台灣高鐵訂票的網站
 
-# 連線高鐵網站取得驗證碼流程
+# 系統架構與資料流
+
+## 系統需求
+
+建立一個訂票網站，上輸入訂票資訊，包含出發地、目的地、日期、使用者身份等必要訂票資訊，選擇立即訂票，或是預約指定時間搶票。使用者指定期望搭乘時間、允許搭乘區間，系統嘗試訂購允許搭乘區間內的車次，選擇最接近期望搭乘時間的車次訂購，直到成功訂購到票為止。建立最大訂票嘗試次數，超過次數後停止嘗試。建立歷史訂票紀錄，包含訂票資訊、訂票結果、每次嘗試記錄等，供使用者查詢。
+
+---
+
+# 高鐵訂票完整流程
 
 ## 概覽
 
 高鐵網站 `irs.thsrc.com.tw` 使用 **Apache Wicket** 框架 + **Akamai WAF** 防護。
-訂票需三次 HTTP 請求（Init → S1 查詢班次 → S2 確認訂位），全程共用同一組 cookie jar。
+訂票需五個步驟（Init → GetCaptcha → SolveCapcha → S1 查詢班次 → S2→S3→S4 確認訂位），全程共用同一組 cookie jar。
 
 ## 流程圖
 
@@ -60,9 +68,10 @@
 │              BookingS1Form::IFormSubmitListener"  → formAction  │
 │    src="/IMINT/?wicket:interface=...passCode::                  │
 │              IResourceListener&wicket:antiCache=xxx" → captchaUrl│
+│    name="bookingMethod" value="radio31"  → bookingMethod        │
 └──────────────────────────┬──────────────────────────────────────┘
                            │ 合併 cookies1 + cookies2（後者同名覆蓋前者）
-                           │ 解析出完整 cookieJar、formAction、captchaUrl
+                           │ 解析出完整 cookieJar、formAction、captchaUrl、bookingMethod
                            ▼
 ┌─────────────────────────────────────────────────────────────────┐
 │  Step 2：thsrcGetCaptcha()                                      │
@@ -89,10 +98,10 @@
                     ▼
 ┌─────────────────────────────────────────────────────────────────┐
 │  Step 3：Captcha Solver API                                     │
-│  POST http://35.212.154.47:8080/solve                          │
+│  POST http://35.212.154.47:8080/solve                           │
 │  Body: { image: "<base64 PNG>" }                                │
 │                                                                 │
-│  Response: { answer: "A3K7" }  ← 4 字元英數字                  │
+│  Response: { answer: "A3K7", confidence: [0.99, 0.99, ...] }   │
 │         or { detail: "Invalid image..." }  → 拋出 Error        │
 └──────────────────────────┬──────────────────────────────────────┘
                            │ captchaAnswer = "A3K7"
@@ -101,42 +110,103 @@
 │  Step 4：thsrcQueryTrains()                                     │
 │  POST https://irs.thsrc.com.tw/IMINT/;jsessionid=xxx?           │
 │        wicket:interface=...BookingS1Form::IFormSubmitListener   │
+│                                          redirect: manual       │
 │                                                                 │
 │  Form fields:                                                   │
+│    bookingMethod: radio31            ← Wicket 動態生成的 ID     │
 │    selectStartStation: 1 (台北)                                 │
 │    selectDestinationStation: 12 (左營)                          │
 │    toTimeInputField: 2026/04/30                                 │
-│    toTimeTable: 900A  (對應 09:00)                              │
+│    toTimeTable: 900A                 ← 對應 09:00               │
+│    ticketPanel:rows:0:ticketAmount: 1F  ← 全票 1 張            │
 │    homeCaptcha:securityCode: A3K7                               │
 │    SubmitButton: 開始查詢                                        │
 │                                                                 │
 │  Cookie: <完整 cookieJar>                                       │
 └──────────────────────────┬──────────────────────────────────────┘
+                           │ HTTP 302 → 合併新 cookie → GET redirect
+                           │ HTTP 200：S2 頁面
                            │
                     ┌──────┴──────┐
                     │             │
               找到班次列表    無班次 / 驗證碼錯誤
               S2 form URL         │
-                    │          handleRetry()
-                    ▼          排程 2 分鐘後重試
+                    │       createBookingAttempt(success:false)
+                    │          handleRetry() → 排程 2 分鐘後重試
+                    ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│  Step 5：thsrcSubmitBooking()                                   │
+│  S2 頁面：班次列表                                              │
+│                                                                 │
+│  HTML 包含：                                                    │
+│    <input QueryDeparture="09:01" QueryArrival="11:00"           │
+│           QueryCode="1307"                                      │
+│           name="TrainQueryDataViewPanel:TrainGroup"             │
+│           value="radio25">         ← Wicket 動態 radio ID      │
+│                                                                 │
+│  selectBestTrain()：選出最接近 desiredTime 的班次               │
+└──────────────────────────┬──────────────────────────────────────┘
+                           │ bestTrain.radioValue = "radio25"
+                           ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  Step 5a：thsrcSubmitBooking() — S2 POST（選車次）              │
 │  POST https://irs.thsrc.com.tw/IMINT/...BookingS2Form...        │
+│                                          redirect: manual       │
 │                                                                 │
 │  Form fields:                                                   │
-│    TrainQueryDataViewPanel:TrainGroup: <trainNo>                │
+│    TrainQueryDataViewPanel:TrainGroup: radio25  ← Wicket ID    │
+│    ticketPanel:rows:0:ticketAmount: 1F                          │
 │    toPayment: 確認訂位                                           │
 │    homeCaptcha:securityCode: A3K7  ← 同一組驗證碼              │
 │                                                                 │
 │  Cookie: <完整 cookieJar>                                       │
 └──────────────────────────┬──────────────────────────────────────┘
+                           │ HTTP 302 → 合併新 cookie → GET redirect
+                           │ HTTP 200：S3 頁面（乘客資料表單）
+                           ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  Step 5b：thsrcSubmitBooking() — S3 POST（填乘客資料）          │
+│  POST https://irs.thsrc.com.tw/IMINT/...BookingS3Form...        │
+│                                          redirect: manual       │
+│                                                                 │
+│  Form fields:                                                   │
+│    BookingS3FormSP:hf:0: ""                                     │
+│    idInputRadio: 0                 ← 0 = 身份證                 │
+│    dummyId: A123456789             ← 身份證號                   │
+│    dummyPhone: 0912345678                                       │
+│    email: user@example.com                                      │
+│    TicketMemberSystemInputPanel:...:memberSystemRadioGroup:     │
+│      radio45                       ← 非會員（動態取自 S3 HTML） │
+│    agree: on                                                    │
+│    SubmitButton: 確定                                            │
+│                                                                 │
+│  Cookie: <合併後 cookieJar>                                     │
+└──────────────────────────┬──────────────────────────────────────┘
+                           │ HTTP 302 → 合併新 cookie → GET redirect
+                           │ HTTP 200：S4 頁面（付款確認）
+                           ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  S4 頁面：parseBookingResult()                                  │
+│                                                                 │
+│  HTML 包含：                                                    │
+│    <td>訂位代號</td>                                            │
+│    <td class="td-data">                                         │
+│      <p class="pnr-code"><span>05991354</span></p>              │
+│                                                                 │
+│  Regex：訂位代號<\/td>[\s\S]{0,300}?<p[^>]*pnr[^>]*>           │
+│          [\s\S]{0,50}?<span>\s*(\d{6,10})\s*<\/span>           │
+└──────────────────────────┬──────────────────────────────────────┘
                            │
                     ┌──────┴──────┐
                     │             │
-              訂位代號：XXXX    error class 出現
-              → status=success  → handleRetry()
-              → 寄 email 通知
+              ticketNo: 05991354  error class 出現
+                    │             │
+                    ▼             ▼
+          status = success   createBookingAttempt(success:false)
+          createBookingAttempt   handleRetry()
+          (success:true)
 ```
+
+---
 
 ## 關鍵限制
 
@@ -145,45 +215,16 @@
 | 第一次請求回 302，`redirect:'follow'` 會丟棄 Akamai cookie | node-fetch 自動跟隨重導向時不保留中間 response 的 Set-Cookie | `thsrcInit()` 改用 `redirect:'manual'` 手動處理兩段式請求 |
 | `Connection: keep-alive` 缺少會 timeout | Akamai 在 TLS handshake 前就切斷沒有此 header 的連線 | 已加入 `BROWSER_HEADERS` |
 | 只帶 `JSESSIONID` 會被 WAF 攔截 | Akamai Bot Manager 驗證完整 cookie 組合 | `thsrcInit()` 合併兩次 Set-Cookie 回傳完整 `cookieJar` |
-| GCE VM us-west1 IP 被封鎖 | Akamai 封鎖非台灣 IP（IP 層級，headers 無效） | scheduler 必須在台灣 IP 機器上執行 |
-| node-fetch TLS fingerprint 可能被識別 | Akamai 可辨識非瀏覽器的 TLS ClientHello | 本機 Mac 直跑 scheduler 可繞過 |
+| S1/S2/S3 POST 均回 302，需兩段式處理 | Wicket + Akamai 每次 POST 都回 302 帶新 cookie，再 GET 才拿到頁面 | `_postAndFollow()` helper 統一處理 POST→302→GET 並合併 cookie |
+| PNR 包在 `<span>` 內 | S4 HTML 格式：`<p class="pnr-code"><span>XXXXXXXX</span></p>` | `parseBookingResult()` regex 加入 `<span>` 匹配 |
+---
 
-目前的測試結論：
+## 測試結果
 
-測試結果整理如下：
-
-```
-┌──────────────────────────────┬────────────────────────────────────────────────────────┐                                                     
-│             步驟             │                          狀態                          │
-├──────────────────────────────┼────────────────────────────────────────────────────────┤
-│ thsrcInit() — 兩段式 302→200 │ ✅ 成功，完整 cookie jar，正確的 formAction/captchaUrl │
-├──────────────────────────────┼────────────────────────────────────────────────────────┤
-│ thsrcGetCaptcha() — 取得 PNG │ ✅ 成功，回傳 PNG base64                               │                                                      
-├──────────────────────────────┼────────────────────────────────────────────────────────┤                                                     
-│ Captcha Solver API           │ ✅ 成功，回傳 4 字元答案                               │                                                      
-├──────────────────────────────┼────────────────────────────────────────────────────────┤                                                     
-│ thsrcQueryTrains() POST      │ ❌ 302 → 回首頁，S2 form 找不到                        │
-├──────────────────────────────┼────────────────────────────────────────────────────────┤                                                     
-│ curl 同樣 session 做 POST    │ ❌ 同樣失敗 → 確認非 node-fetch TLS 問題               │
-└──────────────────────────────┴────────────────────────────────────────────────────────┘
-```
-
-根本原因尚未確認，但縮小到：高鐵 Wicket session 對 S1 form POST 的驗證失敗。可能是：
-1. Akamai 在 POST 時發現 TLS fingerprint 不像真實 Chrome 而 block
-2. 新 session 需要更多的 Akamai challenge-response 才能做 POST
-
-目前 thsrcInit()、thsrcGetCaptcha()、cookie jar 完整性的修改都是正確且必要的，QueryTrains 的問題需要進一步分析 Akamai 的行為才能解決。
-
-# 系統需求
-
-建立一個  訂票網站，上輸入訂票資訊，包含出發地、目的地、日期、使用者身份等必要訂票資訊，選擇立即訂票，或是預約指定時間訂搶票。
-使用者指定期望搭乘時間，允許搭乘區間，系統嘗試訂購允許搭乘區間內的車次，選擇最接近期望搭乘時間的車次訂購，直到成功訂購到票為止。
-
-應建立最大訂票嘗試次數，超過次數後停止嘗試，並通知使用者訂票失敗。
-
-建立歷史訂票紀錄，包含訂票資訊、訂票結果、訂票嘗試次數等資訊，供使用者查詢。成功後再次到訂票網站確認訂票資訊，並發送 email 通知使用者訂票成功，包含訂票資訊、訂票結果、訂票嘗試次數等資訊。
-
-
-
-
-
+| 步驟 | 狀態 |
+|------|------|
+| thsrcInit() — 兩段式 302→200 | ✅ 成功，完整 cookie jar，正確的 formAction/captchaUrl |
+| thsrcGetCaptcha() — 取得 PNG | ✅ 成功，回傳 PNG base64 |
+| Captcha Solver API | ✅ 成功，回傳 4 字元答案（confidence ≥ 0.92） |
+| thsrcQueryTrains() — S1 POST | ✅ 成功，正確解析班次列表（QueryDeparture/QueryArrival/QueryCode） |
+| thsrcSubmitBooking() — S2→S3→S4 | ✅ 成功，取得訂位代號（已驗證：05991354、06000727、06000820） |

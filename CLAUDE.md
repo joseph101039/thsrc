@@ -142,4 +142,4 @@ The `captcha/` directory is part of this monorepo (merged via `git subtree`). Se
 - All user-facing strings and comments are in Traditional Chinese (繁體中文)
 - Node.js uses CommonJS (`require`/`module.exports`)
 - No linter or formatter configured
-- each API should has error console logs 
+- each API should have error console logs 
