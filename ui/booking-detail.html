@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>訂票詳情</title>
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    .attempt-list { list-style: none; padding: 0; }
+    .attempt-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 12px 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .attempt-item:last-child { border-bottom: none; }
+    .attempt-icon { font-size: 20px; flex-shrink: 0; line-height: 1.4; }
+    .attempt-body { flex: 1; }
+    .attempt-seq { font-size: 12px; color: var(--text-muted); margin-bottom: 2px; }
+    .attempt-time { font-size: 13px; color: var(--text-muted); }
+    .attempt-reason { font-size: 14px; color: var(--danger); margin-top: 2px; }
+    .section-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin: 20px 0 10px;
+    }
+  </style>
+</head>
+<body>
+  <header class="page-header">
+    <button class="back-btn" onclick="history.back()">&#8592;</button>
+    <h1 id="page-title">訂票詳情</h1>
+  </header>
+
+  <main class="page-content">
+    <div id="detail-content">
+      <div class="loading">載入中...</div>
+    </div>
+  </main>
+
+  <nav class="bottom-nav">
+    <a href="index.html" class="nav-item active">
+      <span class="nav-icon">🎫</span>
+      <span>訂票紀錄</span>
+    </a>
+    <a href="passengers.html" class="nav-item">
+      <span class="nav-icon">👤</span>
+      <span>乘客設定</span>
+    </a>
+  </nav>
+
+  <script src="js/api.js"></script>
+  <script src="js/booking-detail.js"></script>
+</body>
+</html>
