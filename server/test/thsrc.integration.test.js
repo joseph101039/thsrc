@@ -84,6 +84,24 @@ test('parseTrainOptions：正確過濾時間區間', () => {
   assert.equal(trains[0].arriveTime, '13:00');
 });
 
+const db = require('../src/db');
+
+test('createBookingAttempt 和 getAttemptsByBookingId：可寫入並查詢嘗試紀錄', () => {
+  const bookingId = 'test-booking-' + Date.now();
+  db.getBookings(); // 確保 DB 已初始化
+
+  db.createBookingAttempt({ bookingId, success: false, reason: '無可用班次' });
+  db.createBookingAttempt({ bookingId, success: true, reason: null });
+
+  const attempts = db.getAttemptsByBookingId(bookingId);
+  assert.equal(attempts.length, 2, '應有 2 筆嘗試紀錄');
+  assert.equal(attempts[0].success, 0, '第一筆應為失敗');
+  assert.equal(attempts[0].reason, '無可用班次');
+  assert.equal(attempts[1].success, 1, '第二筆應為成功');
+  assert.equal(attempts[1].reason, null);
+  assert.ok(attempts[0].attemptedAt, '應有 attemptedAt 欄位');
+});
+
 test('selectBestTrain：選出最接近期望時間的班次', () => {
   const trains = [
     { trainNo: 'A', departTime: '09:00', arriveTime: '11:30' },

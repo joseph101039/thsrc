@@ -48,6 +48,14 @@ function _initSchema(db) {
       created_at    TEXT NOT NULL,
       updated_at    TEXT NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS booking_attempts (
+      id            TEXT PRIMARY KEY,
+      booking_id    TEXT NOT NULL,
+      attempted_at  TEXT NOT NULL,
+      success       INTEGER NOT NULL,
+      reason        TEXT
+    );
   `);
 }
 
@@ -163,9 +171,26 @@ function getStuckRunningBookings() {
   `).all(cutoff).map(_toCamel);
 }
 
+function createBookingAttempt({ bookingId, success, reason }) {
+  const id = uuidv4();
+  const now = new Date().toISOString();
+  getDb().prepare(`
+    INSERT INTO booking_attempts (id, booking_id, attempted_at, success, reason)
+    VALUES (?, ?, ?, ?, ?)
+  `).run(id, bookingId, now, success ? 1 : 0, reason || null);
+  return { success: true, id };
+}
+
+function getAttemptsByBookingId(bookingId) {
+  return getDb().prepare(`
+    SELECT * FROM booking_attempts WHERE booking_id = ? ORDER BY attempted_at ASC
+  `).all(bookingId).map(_toCamel);
+}
+
 module.exports = {
   getPassengers, savePassenger, deletePassenger,
   getBookings, createBooking, updateBookingFields, deleteBooking,
   getBookingById, getPassengerById,
   getPendingBookings, getStuckRunningBookings,
+  createBookingAttempt, getAttemptsByBookingId,
 };
