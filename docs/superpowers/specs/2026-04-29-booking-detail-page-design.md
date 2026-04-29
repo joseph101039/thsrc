@@ -100,6 +100,17 @@ function formatTW(isoStr) {
 
 ---
 
+## 其他修改
+
+### 移除 Email 通知（`server/src/booking_engine.js`）
+
+訂票成功與失敗都不寄送 email，移除：
+- `_doBooking()` 中的 `await sendSuccessEmail(...)`
+- `handleRetry()` 中的 `sendFailureEmail(...).catch(console.error)`
+- `require('./mailer')` import
+
+---
+
 ## 不在本次範圍
 
 - 每步驟耗時、車次資訊等詳細 log
