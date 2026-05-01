@@ -88,6 +88,19 @@ app.post('/', async (req, res, next) => {
       case 'createBooking':      result = db.createBooking(data);                      break;
       case 'deleteBooking':      result = db.deleteBooking(id);                        break;
       case 'getBookingAttempts': result = { attempts: db.getAttemptsByBookingId(id) }; break;
+      case 'getAllowedUsers':
+        if (req.user.role !== 'admin') return res.status(403).json({ error: '無權限' });
+        result = { users: db.getAllowedUsers() };
+        break;
+      case 'addAllowedUser':
+        if (req.user.role !== 'admin') return res.status(403).json({ error: '無權限' });
+        result = db.addAllowedUser(data);
+        break;
+      case 'deleteAllowedUser':
+        if (req.user.role !== 'admin') return res.status(403).json({ error: '無權限' });
+        if (id === req.user.email) return res.status(400).json({ error: '不能刪除自己' });
+        result = db.deleteAllowedUser(id);
+        break;
       default:
         return res.status(400).json({ error: 'Unknown action: ' + action });
     }
