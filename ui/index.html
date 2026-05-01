@@ -32,10 +32,22 @@
       <span class="nav-icon">👤</span>
       <span>乘客設定</span>
     </a>
+    <a href="admin.html" class="nav-item" id="nav-admin" hidden>
+      <span class="nav-icon">👥</span>
+      <span>使用者</span>
+    </a>
   </nav>
 
   <script src="js/auth.js"></script>
   <script src="js/api.js"></script>
   <script src="js/index.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', function () {
+      if (window.__auth.getRole() === 'admin') {
+        var el = document.getElementById('nav-admin');
+        if (el) el.hidden = false;
+      }
+    });
+  </script>
 </body>
 </html>
