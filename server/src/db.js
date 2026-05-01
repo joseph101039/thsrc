@@ -56,6 +56,12 @@ function _initSchema(db) {
       success       INTEGER NOT NULL,
       reason        TEXT
     );
+
+    CREATE TABLE IF NOT EXISTS allowed_users (
+      email       TEXT PRIMARY KEY COLLATE NOCASE,
+      role        TEXT NOT NULL DEFAULT 'user',
+      created_at  TEXT NOT NULL
+    );
   `);
 }
 
@@ -65,6 +71,12 @@ function _migrate(db) {
   if (!cols.includes('phone')) {
     db.exec("ALTER TABLE passengers ADD COLUMN phone TEXT NOT NULL DEFAULT ''");
   }
+
+  // 插入預設 admin（若已存在則忽略）
+  db.prepare(`
+    INSERT OR IGNORE INTO allowed_users (email, role, created_at)
+    VALUES (?, 'admin', ?)
+  `).run('joseph101039@gmail.com', new Date().toISOString());
 }
 
 // ── snake_case → camelCase ────────────────────────────────────
@@ -187,10 +199,26 @@ function getAttemptsByBookingId(bookingId) {
   `).all(bookingId).map(_toCamel);
 }
 
+// ── Auth ─────────────────────────────────────────────────
+
+function isAllowedUser(email) {
+  const row = getDb().prepare(
+    'SELECT 1 FROM allowed_users WHERE email = ?'
+  ).get(email.toLowerCase());
+  return !!row;
+}
+
+function getAllowedUser(email) {
+  return _toCamel(getDb().prepare(
+    'SELECT * FROM allowed_users WHERE email = ?'
+  ).get(email.toLowerCase()));
+}
+
 module.exports = {
   getPassengers, savePassenger, deletePassenger,
   getBookings, createBooking, updateBookingFields, deleteBooking,
   getBookingById, getPassengerById,
   getPendingBookings, getStuckRunningBookings,
   createBookingAttempt, getAttemptsByBookingId,
+  isAllowedUser, getAllowedUser,
 };
