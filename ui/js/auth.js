@@ -21,11 +21,19 @@
     location.href = 'login.html';
   }
 
+  function getRole() {
+    const token = getToken();
+    if (!token) return null;
+    try {
+      return JSON.parse(atob(token.split('.')[1])).role || null;
+    } catch { return null; }
+  }
+
   const token = getToken();
   if (!isTokenValid(token)) {
     sessionStorage.setItem('returnUrl', location.href);
     location.href = 'login.html';
   }
 
-  window.__auth = { getToken, logout };
+  window.__auth = { getToken, logout, getRole };
 })();
