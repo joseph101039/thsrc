@@ -91,3 +91,16 @@ test('authMiddleware：過期 token 應回傳 401', async () => {
     await new Promise(r => server.close(r));
   }
 });
+
+test('POST / action=googleAuth 無 JWT 應進入 auth handler（缺少 credential 回 400）', async () => {
+  const server = http.createServer(app);
+  await new Promise(r => server.listen(0, r));
+  try {
+    const res = await postJson(server, '/', { action: 'googleAuth' });
+    // 沒有 credential → googleAuthHandler 回 400，而非 authMiddleware 的 401
+    assert.strictEqual(res.status, 400);
+    assert.ok(res.body.error.includes('credential'));
+  } finally {
+    await new Promise(r => server.close(r));
+  }
+});

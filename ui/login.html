@@ -56,9 +56,11 @@
         const data = await res.json();
         if (data.error) throw new Error(data.error);
         localStorage.setItem('thsrc_jwt', data.token);
-        const returnUrl = sessionStorage.getItem('returnUrl') || 'index.html';
+        const raw = sessionStorage.getItem('returnUrl') || 'index.html';
         sessionStorage.removeItem('returnUrl');
-        location.href = returnUrl;
+        const safe = /^https?:\/\//i.test(raw) && !raw.startsWith(location.origin)
+          ? 'index.html' : raw;
+        location.href = safe;
       } catch (err) {
         errEl.textContent = err.message === '帳號無權限'
           ? '此 Google 帳號無使用權限'

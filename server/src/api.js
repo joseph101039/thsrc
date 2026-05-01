@@ -31,7 +31,11 @@ async function googleAuthHandler(req, res) {
       idToken: credential,
       audience: GOOGLE_CLIENT_ID,
     });
-    const { email } = ticket.getPayload();
+    const payload = ticket.getPayload();
+    const { email, email_verified } = payload;
+    if (!email_verified) {
+      return res.status(401).json({ error: '無效的 Google token' });
+    }
     if (!db.isAllowedUser(email)) {
       console.error('登入被拒：', email);
       return res.status(403).json({ error: '帳號無權限' });
@@ -67,11 +71,8 @@ app.get('/', (req, res) => {
   res.json({ status: 'ok' });
 });
 
-app.post('/auth/google', googleAuthHandler);
-
 app.post('/', async (req, res, next) => {
   if ((req.body || {}).action === 'googleAuth') {
-    req.body = { credential: req.body.credential };
     return googleAuthHandler(req, res);
   }
   return authMiddleware(req, res, next);
