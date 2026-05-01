@@ -61,6 +61,9 @@ function authMiddleware(req, res, next) {
   }
   try {
     req.user = jwt.verify(token, JWT_SECRET);
+    if (!db.isAllowedUser(req.user.email)) {
+      return res.status(403).json({ error: '帳號已被移除' });
+    }
     next();
   } catch {
     return res.status(401).json({ error: '未授權' });

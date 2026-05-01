@@ -30,8 +30,7 @@ function userRow(u, selfEmail) {
   const safeEmail = escHtml(u.email);
   const deleteBtn = isSelf
     ? `<span style="color:#aaa;font-size:13px;">（你）</span>`
-    : `<button class="btn btn-danger" style="font-size:13px;padding:6px 10px;"
-         onclick="deleteUser('${safeEmail}')">刪除</button>`;
+    : `<button class="btn btn-danger" style="font-size:13px;padding:6px 10px;" data-email="${safeEmail}">刪除</button>`;
   return `
     <div class="card" style="display:grid;grid-template-columns:1fr auto auto;gap:12px;align-items:center;padding:12px 16px;">
       <div style="font-size:14px;word-break:break-all;">${safeEmail}</div>
@@ -49,6 +48,9 @@ async function loadUsers() {
     el.innerHTML = users.length
       ? users.map(u => userRow(u, selfEmail)).join('')
       : '<div class="alert alert-info">尚無使用者資料。</div>';
+    el.querySelectorAll('button[data-email]').forEach(btn => {
+      btn.addEventListener('click', () => deleteUser(btn.dataset.email));
+    });
   } catch (err) {
     el.innerHTML = `<div class="alert alert-warning">載入失敗：${err.message}</div>`;
   }
