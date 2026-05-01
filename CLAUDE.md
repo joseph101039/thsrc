@@ -24,13 +24,21 @@ DOCKERHUB_USER=joseph50804 bash server/deploy-server.sh
 
 Builds `linux/amd64` image and pushes to `joseph50804/thsrc-server:latest`. VM cron job auto-pulls every 5 minutes.
 
-### UI frontend
+### 更新 VM 環境變數（production .env）
+
+VM 的 `.env` 位於 `/home/joseph/.env`，透過 gcloud 存取：
 
 ```bash
-git push origin main:gh-pages
+# 查看目前 .env
+gcloud compute ssh instance-20260427-141455 --zone=us-west1-b --project=sincere-office-494609-m3 --command="cat ~/.env"
+
+# 新增或修改變數（追加）
+gcloud compute ssh instance-20260427-141455 --zone=us-west1-b --project=sincere-office-494609-m3 --command="echo 'KEY=VALUE' >> ~/.env"
+
+# 重啟 server/scheduler 使新變數生效
+gcloud compute ssh instance-20260427-141455 --zone=us-west1-b --project=sincere-office-494609-m3 --command="cd ~ && docker compose up -d server scheduler"
 ```
 
-The `gh-pages` branch serves `ui/` at `https://joseph101039.github.io/thsrc/ui/`.
 
 ### Local dev (Docker)
 
@@ -50,7 +58,7 @@ Requires `.env.local` (git-ignored) with `GMAIL_USER` and `GMAIL_APP_PASSWORD`.
 ## Architecture
 
 ```
-docs/flowchart.md — system architecture and data flow diagram, 修改流程時請更新此圖
+docs/readme.md — system architecture and data flow diagram, 修改流程時請更新此圖
 ui/          — vanilla HTML/CSS/JS frontend (GitHub Pages)
 server/      — Node.js/Express API + scheduler
   src/
