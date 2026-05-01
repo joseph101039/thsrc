@@ -10,6 +10,15 @@ THSRC automated ticket-booking agent. Backend is a Node.js/Express server; front
 - **Server API (direct):** `http://35.212.154.47:8081`
 - **UI (GitHub Pages):** `https://joseph101039.github.io/thsrc/ui/`
 
+## Development Notes
+
+**No PR flow** — This project pushes directly to `main`. Skip the PR step (Step 8) in the global development workflow. After commit, deploy instead:
+1. Push code: `git push origin main`
+2. Deploy frontend: `git push origin main:gh-pages`
+3. Deploy backend: `DOCKERHUB_USER=joseph50804 bash server/deploy-server.sh`
+
+---
+
 ## Deployment
 
 本地 docker-compose 主要用於開發測試，必須本地整合測試過沒問題才可以部署正式環境。
