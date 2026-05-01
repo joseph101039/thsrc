@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>登入 — 高鐵訂票</title>
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    .login-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 70vh;
+      gap: 24px;
+    }
+    .login-title { font-size: 1.4rem; color: #333; }
+    .login-error { color: #c62828; font-size: 0.9rem; display: none; }
+  </style>
+</head>
+<body>
+  <header class="page-header">
+    <h1>高鐵訂票</h1>
+  </header>
+  <main class="page-content">
+    <div class="login-container">
+      <p class="login-title">請使用 Google 帳號登入</p>
+      <div id="g_id_onload"
+           data-client_id="1023547405995-rqjiof7088uu4pn59vktskfq0g2rhgs0.apps.googleusercontent.com"
+           data-callback="handleCredentialResponse"
+           data-auto_prompt="false">
+      </div>
+      <div class="g_id_signin"
+           data-type="standard"
+           data-size="large"
+           data-theme="outline"
+           data-text="sign_in_with"
+           data-shape="rectangular"
+           data-logo_alignment="left">
+      </div>
+      <p class="login-error" id="login-error"></p>
+    </div>
+  </main>
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <script src="js/api.js"></script>
+  <script>
+    async function handleCredentialResponse(response) {
+      const errEl = document.getElementById('login-error');
+      errEl.style.display = 'none';
+      try {
+        const res = await fetch(window.__API_URL || 'https://api.joseph101039.uk', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'googleAuth', credential: response.credential }),
+        });
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+        localStorage.setItem('thsrc_jwt', data.token);
+        const returnUrl = sessionStorage.getItem('returnUrl') || 'index.html';
+        sessionStorage.removeItem('returnUrl');
+        location.href = returnUrl;
+      } catch (err) {
+        errEl.textContent = err.message === '帳號無權限'
+          ? '此 Google 帳號無使用權限'
+          : '登入失敗，請稍後再試';
+        errEl.style.display = 'block';
+      }
+    }
+  </script>
+</body>
+</html>
