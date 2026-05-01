@@ -12,10 +12,12 @@ THSRC automated ticket-booking agent. Backend is a Node.js/Express server; front
 
 ## Development Notes
 
-**No PR flow** — This project pushes directly to `main`. Skip the PR step (Step 8) in the global development workflow. After commit, deploy instead:
+**No PR flow** — This project pushes directly to `main`. Replace Step 8 (PR) in the global development workflow with deployment:
 1. Push code: `git push origin main`
 2. Deploy frontend: `git push origin main:gh-pages`
 3. Deploy backend: `DOCKERHUB_USER=joseph50804 bash server/deploy-server.sh`
+
+**Deploy only after all reviews pass** (Steps 5 Code Review + Step 6 Security Review must complete first).
 
 ---
 
