@@ -3,6 +3,15 @@ if (window.__auth.getRole() !== 'admin') {
   location.href = 'index.html';
 }
 
+function escHtml(str) {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 const adminApi = {
   getUsers:   ()      => gasCall('getAllowedUsers'),
   addUser:    (data)  => gasCall('addAllowedUser', { data }),
@@ -18,13 +27,14 @@ function roleBadge(role) {
 
 function userRow(u, selfEmail) {
   const isSelf = u.email.toLowerCase() === selfEmail.toLowerCase();
+  const safeEmail = escHtml(u.email);
   const deleteBtn = isSelf
     ? `<span style="color:#aaa;font-size:13px;">（你）</span>`
     : `<button class="btn btn-danger" style="font-size:13px;padding:6px 10px;"
-         onclick="deleteUser('${u.email}')">刪除</button>`;
+         onclick="deleteUser('${safeEmail}')">刪除</button>`;
   return `
     <div class="card" style="display:grid;grid-template-columns:1fr auto auto;gap:12px;align-items:center;padding:12px 16px;">
-      <div style="font-size:14px;word-break:break-all;">${u.email}</div>
+      <div style="font-size:14px;word-break:break-all;">${safeEmail}</div>
       ${roleBadge(u.role)}
       ${deleteBtn}
     </div>`;

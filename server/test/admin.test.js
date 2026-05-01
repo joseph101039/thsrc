@@ -39,6 +39,17 @@ test('deleteAllowedUser：刪除後不應出現在列表', () => {
   assert.ok(!users.some(u => u.email === 'todelete@example.com'));
 });
 
+test('addAllowedUser：缺少 email 應回傳 success:false', () => {
+  const result = db.addAllowedUser({ email: null, role: 'user' });
+  assert.strictEqual(result.success, false);
+  assert.ok(result.error.includes('email'));
+});
+
+test('addAllowedUser：email 非字串應回傳 success:false', () => {
+  const result = db.addAllowedUser({ email: 123, role: 'user' });
+  assert.strictEqual(result.success, false);
+});
+
 const jwt = require('jsonwebtoken');
 const http = require('http');
 const app = require('../src/api');
@@ -136,6 +147,40 @@ test('deleteAllowedUser：user token 應回傳 403', async () => {
   try {
     const res = await postJson(server, '/', { action: 'deleteAllowedUser', id: 'other@example.com' }, { Authorization: `Bearer ${makeToken('user')}` });
     assert.strictEqual(res.status, 403);
+  } finally {
+    await new Promise(r => server.close(r));
+  }
+});
+
+test('addAllowedUser：無效 role 應回傳 400', async () => {
+  const server = http.createServer(app);
+  await new Promise(r => server.listen(0, r));
+  try {
+    const res = await postJson(server, '/', { action: 'addAllowedUser', data: { email: 'x@x.com', role: 'superadmin' } }, { Authorization: `Bearer ${makeToken('admin')}` });
+    assert.strictEqual(res.status, 400);
+  } finally {
+    await new Promise(r => server.close(r));
+  }
+});
+
+test('addAllowedUser：缺少 email 應回傳 success:false', async () => {
+  const server = http.createServer(app);
+  await new Promise(r => server.listen(0, r));
+  try {
+    const res = await postJson(server, '/', { action: 'addAllowedUser', data: { role: 'user' } }, { Authorization: `Bearer ${makeToken('admin')}` });
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(res.body.success, false);
+  } finally {
+    await new Promise(r => server.close(r));
+  }
+});
+
+test('deleteAllowedUser：case-insensitive 自刪保護', async () => {
+  const server = http.createServer(app);
+  await new Promise(r => server.listen(0, r));
+  try {
+    const res = await postJson(server, '/', { action: 'deleteAllowedUser', id: 'JOSEPH101039@GMAIL.COM' }, { Authorization: `Bearer ${makeToken('admin')}` });
+    assert.strictEqual(res.status, 400);
   } finally {
     await new Promise(r => server.close(r));
   }

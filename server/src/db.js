@@ -208,6 +208,7 @@ function getAllowedUsers() {
 }
 
 function addAllowedUser({ email, role }) {
+  if (!email || typeof email !== 'string') return { success: false, error: '缺少 email' };
   const existing = getDb().prepare(
     'SELECT 1 FROM allowed_users WHERE email = ?'
   ).get(email.toLowerCase());

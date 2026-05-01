@@ -94,11 +94,12 @@ app.post('/', async (req, res, next) => {
         break;
       case 'addAllowedUser':
         if (req.user.role !== 'admin') return res.status(403).json({ error: '無權限' });
+        if (!['user', 'admin'].includes((data || {}).role)) return res.status(400).json({ error: '無效的角色' });
         result = db.addAllowedUser(data);
         break;
       case 'deleteAllowedUser':
         if (req.user.role !== 'admin') return res.status(403).json({ error: '無權限' });
-        if (id === req.user.email) return res.status(400).json({ error: '不能刪除自己' });
+        if ((id || '').toLowerCase() === req.user.email.toLowerCase()) return res.status(400).json({ error: '不能刪除自己' });
         result = db.deleteAllowedUser(id);
         break;
       default:
