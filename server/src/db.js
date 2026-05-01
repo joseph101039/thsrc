@@ -199,6 +199,30 @@ function getAttemptsByBookingId(bookingId) {
   `).all(bookingId).map(_toCamel);
 }
 
+// ── Allowed Users ────────────────────────────────────────
+
+function getAllowedUsers() {
+  return getDb().prepare(
+    'SELECT * FROM allowed_users ORDER BY created_at ASC'
+  ).all().map(_toCamel);
+}
+
+function addAllowedUser({ email, role }) {
+  const existing = getDb().prepare(
+    'SELECT 1 FROM allowed_users WHERE email = ?'
+  ).get(email.toLowerCase());
+  if (existing) return { success: false, error: '帳號已存在' };
+  getDb().prepare(
+    'INSERT INTO allowed_users (email, role, created_at) VALUES (?, ?, ?)'
+  ).run(email.toLowerCase(), role, new Date().toISOString());
+  return { success: true };
+}
+
+function deleteAllowedUser(email) {
+  getDb().prepare('DELETE FROM allowed_users WHERE email = ?').run(email.toLowerCase());
+  return { success: true };
+}
+
 // ── Auth ─────────────────────────────────────────────────
 
 function isAllowedUser(email) {
@@ -221,4 +245,5 @@ module.exports = {
   getPendingBookings, getStuckRunningBookings,
   createBookingAttempt, getAttemptsByBookingId,
   isAllowedUser, getAllowedUser,
+  getAllowedUsers, addAllowedUser, deleteAllowedUser,
 };
