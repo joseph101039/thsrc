@@ -13,6 +13,12 @@ app.use(express.json());
 
 const JWT_SECRET = process.env.JWT_SECRET;
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
+
+if (!JWT_SECRET || !GOOGLE_CLIENT_ID) {
+  console.error('缺少必要環境變數：JWT_SECRET 與 GOOGLE_CLIENT_ID 必須設定');
+  process.exit(1);
+}
+
 const googleClient = new OAuth2Client(GOOGLE_CLIENT_ID);
 
 async function googleAuthHandler(req, res) {
