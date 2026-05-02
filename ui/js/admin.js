@@ -13,9 +13,9 @@ function escHtml(str) {
 }
 
 const adminApi = {
-  getUsers:   ()      => gasCall('getAllowedUsers'),
-  addUser:    (data)  => gasCall('addAllowedUser', { data }),
-  deleteUser: (email) => gasCall('deleteAllowedUser', { id: email }),
+  getUsers:   ()      => api.getAllowedUsers(),
+  addUser:    (data)  => api.addAllowedUser(data),
+  deleteUser: (email) => api.deleteAllowedUser(email),
 };
 
 function roleBadge(role) {
