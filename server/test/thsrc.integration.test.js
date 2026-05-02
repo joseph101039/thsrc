@@ -84,16 +84,16 @@ test('parseTrainOptions：正確過濾時間區間', () => {
   assert.equal(trains[0].arriveTime, '13:00');
 });
 
-const db = require('../src/db');
+const bookingRepo = require('../src/repositories/bookingRepo');
 
 test('createBookingAttempt 和 getAttemptsByBookingId：可寫入並查詢嘗試紀錄', () => {
   const bookingId = 'test-booking-' + Date.now();
-  db.getBookings(); // 確保 DB 已初始化
+  bookingRepo.getAll(); // 確保 DB 已初始化
 
-  db.createBookingAttempt({ bookingId, success: false, reason: '無可用班次' });
-  db.createBookingAttempt({ bookingId, success: true, reason: null });
+  bookingRepo.createAttempt({ bookingId, success: false, reason: '無可用班次' });
+  bookingRepo.createAttempt({ bookingId, success: true, reason: null });
 
-  const attempts = db.getAttemptsByBookingId(bookingId);
+  const attempts = bookingRepo.getAttemptsByBookingId(bookingId);
   assert.equal(attempts.length, 2, '應有 2 筆嘗試紀錄');
   assert.equal(attempts[0].success, 0, '第一筆應為失敗');
   assert.equal(attempts[0].reason, '無可用班次');
