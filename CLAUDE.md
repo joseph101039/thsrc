@@ -12,6 +12,7 @@ THSRC automated ticket-booking agent. Backend is a Node.js/Express server; front
 
 ## Development Notes
 
+Follow [CLAUDE.md](~/.claude/CLAUDE.md) workflow for all development. Key modifications to the standard workflow:
 
 **Branch & PR flow** — Always open a branch before modifying code:
 - Feature: `git checkout -b feat-<name>`

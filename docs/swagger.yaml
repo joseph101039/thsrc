@@ -7,8 +7,12 @@
   },
   "servers": [
     {
+      "url": "http://localhost:8081"
+    },
+    {
       "url": "https://api.joseph101039.uk"
-    }
+    },
+
   ],
   "components": {
     "securitySchemes": {
