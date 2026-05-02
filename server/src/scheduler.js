@@ -3,7 +3,7 @@
 const schedule = require('node-schedule');
 const CONFIG = require('./config');
 const db = require('./db');
-const { runBooking } = require('./booking_engine');
+const { runBooking } = require('./services/bookingEngineService');
 
 console.log('Scheduler started');
 
