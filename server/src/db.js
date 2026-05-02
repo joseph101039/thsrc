@@ -1,7 +1,6 @@
 'use strict';
 
 const { DatabaseSync } = require('node:sqlite');
-const { v4: uuidv4 } = require('uuid');
 const path = require('path');
 const fs = require('fs');
 const CONFIG = require('./config');
@@ -66,20 +65,15 @@ function _initSchema(db) {
 }
 
 function _migrate(db) {
-  // passengers.phone — 既有 DB 沒有此欄位時自動補上
-  const cols = db.prepare("PRAGMA table_info(passengers)").all().map(r => r.name);
+  const cols = db.prepare('PRAGMA table_info(passengers)').all().map(r => r.name);
   if (!cols.includes('phone')) {
     db.exec("ALTER TABLE passengers ADD COLUMN phone TEXT NOT NULL DEFAULT ''");
   }
-
-  // 插入預設 admin（若已存在則忽略）
   db.prepare(`
     INSERT OR IGNORE INTO allowed_users (email, role, created_at)
     VALUES (?, 'admin', ?)
   `).run('joseph101039@gmail.com', new Date().toISOString());
 }
-
-// ── snake_case → camelCase ────────────────────────────────────
 
 function _toCamel(row) {
   if (!row) return row;
@@ -91,160 +85,4 @@ function _toCamel(row) {
   return out;
 }
 
-// ── Passengers ──────────────────────────────────────────────
-
-function getPassengers() {
-  return getDb().prepare('SELECT * FROM passengers').all().map(_toCamel);
-}
-
-function savePassenger({ id, name, idNumber, type, email, phone }) {
-  const db = getDb();
-  const phoneVal = phone || '';
-  if (id) {
-    db.prepare(
-      'UPDATE passengers SET name=?, id_number=?, type=?, email=?, phone=? WHERE id=?'
-    ).run(name, idNumber, type, email, phoneVal, id);
-    return { success: true, id };
-  }
-  const newId = uuidv4();
-  db.prepare(
-    'INSERT INTO passengers (id, name, id_number, type, email, phone) VALUES (?, ?, ?, ?, ?, ?)'
-  ).run(newId, name, idNumber, type, email, phoneVal);
-  return { success: true, id: newId };
-}
-
-function deletePassenger(id) {
-  getDb().prepare('DELETE FROM passengers WHERE id=?').run(id);
-  return { success: true };
-}
-
-// ── Bookings ─────────────────────────────────────────────────
-
-function getBookings() {
-  return getDb().prepare('SELECT * FROM bookings ORDER BY created_at DESC').all().map(_toCamel);
-}
-
-function createBooking({ passengerId, fromStation, toStation, date, desiredTime, earliestTime, latestTime, maxRetries, scheduledAt }) {
-  const id = uuidv4();
-  const now = new Date().toISOString();
-  getDb().prepare(`
-    INSERT INTO bookings
-      (id, passenger_id, from_station, to_station, date, desired_time, earliest_time, latest_time,
-       max_retries, scheduled_at, status, retry_count, train_no, ticket_no, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', 0, '', '', ?, ?)
-  `).run(id, passengerId, fromStation, toStation, date, desiredTime, earliestTime, latestTime,
-         maxRetries || 10, scheduledAt || null, now, now);
-  return { success: true, id };
-}
-
-function updateBookingFields(id, fields) {
-  const now = new Date().toISOString();
-  const allFields = { ...fields, updatedAt: now };
-  const colMap = {
-    status: 'status', retryCount: 'retry_count', trainNo: 'train_no',
-    ticketNo: 'ticket_no', scheduledAt: 'scheduled_at', updatedAt: 'updated_at',
-  };
-  const setClauses = Object.keys(allFields)
-    .filter(k => colMap[k])
-    .map(k => `${colMap[k]} = ?`).join(', ');
-  const values = Object.keys(allFields)
-    .filter(k => colMap[k])
-    .map(k => allFields[k]);
-  getDb().prepare(`UPDATE bookings SET ${setClauses} WHERE id = ?`).run(...values, id);
-}
-
-function deleteBooking(id) {
-  getDb().prepare('DELETE FROM bookings WHERE id=?').run(id);
-  return { success: true };
-}
-
-function getBookingById(id) {
-  return _toCamel(getDb().prepare('SELECT * FROM bookings WHERE id=?').get(id));
-}
-
-function getPassengerById(id) {
-  return _toCamel(getDb().prepare('SELECT * FROM passengers WHERE id=?').get(id));
-}
-
-function getPendingBookings() {
-  return _toCamel(getDb().prepare(`
-    SELECT * FROM bookings
-    WHERE status = 'pending'
-      AND (scheduled_at IS NULL OR scheduled_at <= ?)
-    ORDER BY created_at ASC
-    LIMIT 1
-  `).get(new Date().toISOString()));
-}
-
-function getStuckRunningBookings() {
-  const cutoff = new Date(Date.now() - 10 * 60 * 1000).toISOString();
-  return getDb().prepare(`
-    SELECT * FROM bookings WHERE status = 'running' AND updated_at < ?
-  `).all(cutoff).map(_toCamel);
-}
-
-function createBookingAttempt({ bookingId, success, reason }) {
-  const id = uuidv4();
-  const now = new Date().toISOString();
-  getDb().prepare(`
-    INSERT INTO booking_attempts (id, booking_id, attempted_at, success, reason)
-    VALUES (?, ?, ?, ?, ?)
-  `).run(id, bookingId, now, success ? 1 : 0, reason || null);
-  return { success: true, id };
-}
-
-function getAttemptsByBookingId(bookingId) {
-  return getDb().prepare(`
-    SELECT * FROM booking_attempts WHERE booking_id = ? ORDER BY attempted_at ASC
-  `).all(bookingId).map(_toCamel);
-}
-
-// ── Allowed Users ────────────────────────────────────────
-
-function getAllowedUsers() {
-  return getDb().prepare(
-    'SELECT * FROM allowed_users ORDER BY created_at ASC'
-  ).all().map(_toCamel);
-}
-
-function addAllowedUser({ email, role }) {
-  if (!email || typeof email !== 'string') return { success: false, error: '缺少 email' };
-  const existing = getDb().prepare(
-    'SELECT 1 FROM allowed_users WHERE email = ?'
-  ).get(email.toLowerCase());
-  if (existing) return { success: false, error: '帳號已存在' };
-  getDb().prepare(
-    'INSERT INTO allowed_users (email, role, created_at) VALUES (?, ?, ?)'
-  ).run(email.toLowerCase(), role, new Date().toISOString());
-  return { success: true };
-}
-
-function deleteAllowedUser(email) {
-  getDb().prepare('DELETE FROM allowed_users WHERE email = ?').run(email.toLowerCase());
-  return { success: true };
-}
-
-// ── Auth ─────────────────────────────────────────────────
-
-function isAllowedUser(email) {
-  const row = getDb().prepare(
-    'SELECT 1 FROM allowed_users WHERE email = ?'
-  ).get(email.toLowerCase());
-  return !!row;
-}
-
-function getAllowedUser(email) {
-  return _toCamel(getDb().prepare(
-    'SELECT * FROM allowed_users WHERE email = ?'
-  ).get(email.toLowerCase()));
-}
-
-module.exports = {
-  getPassengers, savePassenger, deletePassenger,
-  getBookings, createBooking, updateBookingFields, deleteBooking,
-  getBookingById, getPassengerById,
-  getPendingBookings, getStuckRunningBookings,
-  createBookingAttempt, getAttemptsByBookingId,
-  isAllowedUser, getAllowedUser,
-  getAllowedUsers, addAllowedUser, deleteAllowedUser,
-};
+module.exports = { getDb, _toCamel };

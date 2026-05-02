@@ -27,17 +27,30 @@ const server = http.createServer((req, res) => {
       return;
     }
 
+    // 防止路徑穿越（dev-only server，保守防護）
+    const resolved = require('path').resolve(filePath);
+    if (!resolved.startsWith(require('path').resolve(__dirname))) {
+      res.writeHead(403);
+      res.end('Forbidden');
+      return;
+    }
+
     // api.js 的第一行換成環境變數指定的 URL
     if (filePath.endsWith('api.js')) {
       data = Buffer.from(
         data.toString().replace(
-          /^const GAS_URL = .+/m,
-          `const GAS_URL = '${API_URL}';`
+          /^const API_URL = .+/m,
+          `const API_URL = '${API_URL}';`
         )
       );
     }
 
-    res.writeHead(200, { 'Content-Type': MIME[ext] || 'application/octet-stream' });
+    const headers = { 'Content-Type': MIME[ext] || 'application/octet-stream' };
+    if (ext === '.html') {
+      // Google Sign-In popup 需要 same-origin-allow-popups 才能 postMessage 回主頁
+      headers['Cross-Origin-Opener-Policy'] = 'same-origin-allow-popups';
+    }
+    res.writeHead(200, headers);
     res.end(data);
   });
 });

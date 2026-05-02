@@ -2,8 +2,8 @@
 
 const schedule = require('node-schedule');
 const CONFIG = require('./config');
-const db = require('./db');
-const { runBooking } = require('./booking_engine');
+const bookingRepo = require('./repositories/bookingRepo');
+const { runBooking } = require('./services/bookingEngineService');
 
 console.log('Scheduler started');
 
@@ -19,13 +19,13 @@ async function pollPendingBookings() {
   const now = new Date().toISOString();
   console.log(`[${now}] poll`);
 
-  const stuck = db.getStuckRunningBookings();
+  const stuck = bookingRepo.getStuckRunning();
   for (const b of stuck) {
     console.log(`  [stuck] reset booking ${b.id}`);
-    db.updateBookingFields(b.id, { status: CONFIG.BOOKING_STATUS.PENDING });
+    bookingRepo.updateFields(b.id, { status: CONFIG.BOOKING_STATUS.PENDING });
   }
 
-  const next = db.getPendingBookings();
+  const next = bookingRepo.getPending();
   if (next) {
     console.log(`  [run] bookingId=${next.id} ${next.fromStation}→${next.toStation} ${next.date} ${next.earliestTime}~${next.latestTime} retry=${next.retryCount}/${next.maxRetries}`);
     await runBooking(next.id);

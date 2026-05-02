@@ -1,0 +1,129 @@
+'use strict';
+
+const { test } = require('node:test');
+const assert = require('node:assert/strict');
+const path = require('path');
+const os = require('os');
+const http = require('http');
+const jwt = require('jsonwebtoken');
+
+process.env.DB_PATH = path.join(os.tmpdir(), `thsrc-bookings-test-${Date.now()}.db`);
+process.env.JWT_SECRET = 'test-secret';
+process.env.GOOGLE_CLIENT_ID = 'test-client-id.apps.googleusercontent.com';
+
+const app = require('../src/api');
+
+function makeToken(role = 'user') {
+  return jwt.sign({ email: 'joseph101039@gmail.com', role }, 'test-secret', { expiresIn: '1h' });
+}
+
+function request(server, method, urlPath, body, headers = {}) {
+  return new Promise((resolve, reject) => {
+    const data = body ? JSON.stringify(body) : null;
+    const addr = server.address();
+    const options = {
+      hostname: '127.0.0.1',
+      port: addr.port,
+      path: urlPath,
+      method,
+      headers: {
+        ...(data ? { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(data) } : {}),
+        ...headers,
+      },
+    };
+    const req = http.request(options, (res) => {
+      let b = '';
+      res.on('data', chunk => b += chunk);
+      res.on('end', () => resolve({ status: res.statusCode, body: JSON.parse(b) }));
+    });
+    req.on('error', reject);
+    if (data) req.write(data);
+    req.end();
+  });
+}
+
+const BOOKING_FIXTURE = {
+  passengerId: 'test-passenger-id',
+  fromStation: '台北',
+  toStation: '左營',
+  date: '2026-06-01',
+  desiredTime: '09:00',
+  earliestTime: '08:00',
+  latestTime: '10:00',
+  maxRetries: 3,
+};
+
+test('GET /v1/bookings：無 token 應回傳 401', async () => {
+  const server = http.createServer(app);
+  await new Promise(r => server.listen(0, r));
+  try {
+    const res = await request(server, 'GET', '/v1/bookings', null);
+    assert.strictEqual(res.status, 401);
+  } finally {
+    await new Promise(r => server.close(r));
+  }
+});
+
+test('GET /v1/bookings：有效 token 應回傳陣列', async () => {
+  const server = http.createServer(app);
+  await new Promise(r => server.listen(0, r));
+  try {
+    const res = await request(server, 'GET', '/v1/bookings', null, { Authorization: `Bearer ${makeToken()}` });
+    assert.strictEqual(res.status, 200);
+    assert.ok(Array.isArray(res.body.bookings));
+  } finally {
+    await new Promise(r => server.close(r));
+  }
+});
+
+test('POST /v1/bookings：新增後可在列表中找到', async () => {
+  const server = http.createServer(app);
+  await new Promise(r => server.listen(0, r));
+  try {
+    const token = makeToken();
+    const createRes = await request(server, 'POST', '/v1/bookings', BOOKING_FIXTURE, { Authorization: `Bearer ${token}` });
+    assert.strictEqual(createRes.status, 200);
+    assert.strictEqual(createRes.body.success, true);
+    const id = createRes.body.id;
+
+    const listRes = await request(server, 'GET', '/v1/bookings', null, { Authorization: `Bearer ${token}` });
+    assert.ok(listRes.body.bookings.some(b => b.id === id));
+  } finally {
+    await new Promise(r => server.close(r));
+  }
+});
+
+test('DELETE /v1/bookings/:id：刪除後不應出現在列表', async () => {
+  const server = http.createServer(app);
+  await new Promise(r => server.listen(0, r));
+  try {
+    const token = makeToken();
+    const createRes = await request(server, 'POST', '/v1/bookings', BOOKING_FIXTURE, { Authorization: `Bearer ${token}` });
+    const id = createRes.body.id;
+
+    const delRes = await request(server, 'DELETE', `/v1/bookings/${id}`, null, { Authorization: `Bearer ${token}` });
+    assert.strictEqual(delRes.status, 200);
+
+    const listRes = await request(server, 'GET', '/v1/bookings', null, { Authorization: `Bearer ${token}` });
+    assert.ok(!listRes.body.bookings.some(b => b.id === id));
+  } finally {
+    await new Promise(r => server.close(r));
+  }
+});
+
+test('GET /v1/bookings/:id/attempts：應回傳空陣列（新訂票無嘗試）', async () => {
+  const server = http.createServer(app);
+  await new Promise(r => server.listen(0, r));
+  try {
+    const token = makeToken();
+    const createRes = await request(server, 'POST', '/v1/bookings', BOOKING_FIXTURE, { Authorization: `Bearer ${token}` });
+    const id = createRes.body.id;
+
+    const attemptsRes = await request(server, 'GET', `/v1/bookings/${id}/attempts`, null, { Authorization: `Bearer ${token}` });
+    assert.strictEqual(attemptsRes.status, 200);
+    assert.ok(Array.isArray(attemptsRes.body.attempts));
+    assert.strictEqual(attemptsRes.body.attempts.length, 0);
+  } finally {
+    await new Promise(r => server.close(r));
+  }
+});

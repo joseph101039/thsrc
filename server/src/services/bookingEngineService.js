@@ -1,20 +1,21 @@
 'use strict';
 
 const fetch = require('node-fetch');
-const CONFIG = require('./config');
-const db = require('./db');
-const { thsrcInit, thsrcGetCaptcha, thsrcQueryTrains, thsrcSubmitBooking, selectBestTrain } = require('./thsrc');
+const CONFIG = require('../config');
+const bookingRepo = require('../repositories/bookingRepo');
+const passengerRepo = require('../repositories/passengerRepo');
+const { thsrcInit, thsrcGetCaptcha, thsrcQueryTrains, thsrcSubmitBooking, selectBestTrain } = require('../thsrc');
 
 const BOOKING_TIMEOUT_MS = 120000;
 
 async function runBooking(bookingId) {
-  const booking = db.getBookingById(bookingId);
+  const booking = bookingRepo.getById(bookingId);
   if (!booking) throw new Error('Booking not found: ' + bookingId);
 
-  db.updateBookingFields(bookingId, { status: CONFIG.BOOKING_STATUS.RUNNING });
+  bookingRepo.updateFields(bookingId, { status: CONFIG.BOOKING_STATUS.RUNNING });
 
   const timeout = new Promise((_, reject) =>
-    setTimeout(() => reject(new Error('訂票逾時（60秒）')), BOOKING_TIMEOUT_MS)
+    setTimeout(() => reject(new Error('訂票逾時（120秒）')), BOOKING_TIMEOUT_MS)
   );
 
   try {
@@ -64,10 +65,11 @@ async function _doBooking(bookingId, booking) {
 
   const bestTrain = selectBestTrain(trains, booking.desiredTime);
   console.log(`  [4/5] selected — 車次 ${bestTrain.trainNo} ${bestTrain.departTime}→${bestTrain.arriveTime} (desired=${booking.desiredTime})`);
-  db.updateBookingFields(bookingId, { trainNo: bestTrain.trainNo });
+  bookingRepo.updateFields(bookingId, { trainNo: bestTrain.trainNo });
 
-  const passenger = db.getPassengerById(booking.passengerId);
-  console.log(`  [5/5] thsrcSubmitBooking trainNo=${bestTrain.trainNo} radioValue=${bestTrain.radioValue} passenger.idNumber=${passenger?.idNumber?.slice(0, 3)}... phone=${passenger?.phone} email=${passenger?.email}`);
+  const passenger = passengerRepo.getById(booking.passengerId);
+  if (!passenger) throw new Error('旅客資料不存在：' + booking.passengerId);
+  console.log(`  [5/5] thsrcSubmitBooking trainNo=${bestTrain.trainNo} radioValue=${bestTrain.radioValue} passenger.idNumber=${passenger.idNumber.slice(0, 3)}... phone=${passenger.phone} email=${passenger.email}`);
   const result = await thsrcSubmitBooking(queryCookieJar, s2FormAction, {
     trainNo: bestTrain.radioValue,
     captcha: captchaAnswer,
@@ -76,11 +78,11 @@ async function _doBooking(bookingId, booking) {
   console.log(`  [5/5] done — success=${result.success} ticketNo=${result.ticketNo} error=${result.error}`);
 
   if (result.success) {
-    db.updateBookingFields(bookingId, {
+    bookingRepo.updateFields(bookingId, {
       status: CONFIG.BOOKING_STATUS.SUCCESS,
       ticketNo: result.ticketNo,
     });
-    db.createBookingAttempt({ bookingId, success: true, reason: null });
+    bookingRepo.createAttempt({ bookingId, success: true, reason: null });
     console.log('  [done] 訂票成功：', bookingId, result.ticketNo);
   } else {
     return handleRetry(booking, result.error);
@@ -89,15 +91,15 @@ async function _doBooking(bookingId, booking) {
 
 function handleRetry(booking, reason) {
   const newRetryCount = (booking.retryCount || 0) + 1;
-  db.updateBookingFields(booking.id, { retryCount: newRetryCount });
-  db.createBookingAttempt({ bookingId: booking.id, success: false, reason });
+  bookingRepo.updateFields(booking.id, { retryCount: newRetryCount });
+  bookingRepo.createAttempt({ bookingId: booking.id, success: false, reason });
 
   if (newRetryCount >= booking.maxRetries) {
-    db.updateBookingFields(booking.id, { status: CONFIG.BOOKING_STATUS.FAILED });
+    bookingRepo.updateFields(booking.id, { status: CONFIG.BOOKING_STATUS.FAILED });
     console.log('Booking failed after max retries:', booking.id);
   } else {
     const retryAt = new Date(Date.now() + CONFIG.RETRY_WAIT_MINUTES * 60 * 1000).toISOString();
-    db.updateBookingFields(booking.id, {
+    bookingRepo.updateFields(booking.id, {
       status: CONFIG.BOOKING_STATUS.PENDING,
       scheduledAt: retryAt,
     });
