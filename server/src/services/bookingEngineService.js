@@ -15,7 +15,7 @@ async function runBooking(bookingId) {
   bookingRepo.updateFields(bookingId, { status: CONFIG.BOOKING_STATUS.RUNNING });
 
   const timeout = new Promise((_, reject) =>
-    setTimeout(() => reject(new Error('訂票逾時（60秒）')), BOOKING_TIMEOUT_MS)
+    setTimeout(() => reject(new Error('訂票逾時（120秒）')), BOOKING_TIMEOUT_MS)
   );
 
   try {
