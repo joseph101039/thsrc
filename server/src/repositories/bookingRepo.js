@@ -20,7 +20,7 @@ function create({ passengerId, fromStation, toStation, date, desiredTime, earlie
        max_retries, scheduled_at, status, retry_count, train_no, ticket_no, created_at, updated_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', 0, '', '', ?, ?)
   `).run(id, passengerId, fromStation, toStation, date, desiredTime, earliestTime, latestTime,
-         maxRetries || 10, scheduledAt || null, now, now);
+         maxRetries ?? 10, scheduledAt ?? null, now, now);
   return { success: true, id };
 }
 
