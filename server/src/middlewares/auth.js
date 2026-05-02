@@ -10,10 +10,10 @@ function verifyJwt(req, res, next) {
   const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
   if (!token) return res.status(401).json({ error: '未授權' });
   try {
-    req.user = jwt.verify(token, JWT_SECRET);
-    if (!userService.isAllowedUser(req.user.email)) {
-      return res.status(403).json({ error: '帳號已被移除' });
-    }
+    req.user = jwt.verify(token, JWT_SECRET, { algorithms: ['HS256'] });
+    const dbUser = userService.getUser(req.user.email);
+    if (!dbUser) return res.status(403).json({ error: '帳號已被移除' });
+    req.user.role = dbUser.role;
     next();
   } catch {
     return res.status(401).json({ error: '未授權' });

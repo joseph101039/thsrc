@@ -27,6 +27,14 @@ const server = http.createServer((req, res) => {
       return;
     }
 
+    // 防止路徑穿越（dev-only server，保守防護）
+    const resolved = require('path').resolve(filePath);
+    if (!resolved.startsWith(require('path').resolve(__dirname))) {
+      res.writeHead(403);
+      res.end('Forbidden');
+      return;
+    }
+
     // api.js 的第一行換成環境變數指定的 URL
     if (filePath.endsWith('api.js')) {
       data = Buffer.from(

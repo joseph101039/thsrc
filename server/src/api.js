@@ -16,7 +16,8 @@ if (!JWT_SECRET || !GOOGLE_CLIENT_ID) {
 }
 
 const app = express();
-app.use(cors());
+const ALLOWED_ORIGINS = ['https://joseph101039.github.io', 'http://localhost:8082'];
+app.use(cors({ origin: ALLOWED_ORIGINS }));
 app.use(express.json());
 
 app.get('/', (req, res) => res.json({ status: 'ok' }));

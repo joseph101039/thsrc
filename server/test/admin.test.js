@@ -120,8 +120,23 @@ function getJson(server, urlPath, headers = {}) {
   });
 }
 
+const ADMIN_EMAIL = 'joseph101039@gmail.com';
+const USER_EMAIL  = 'testuser@example.com';
+
+// 預先插入 user 角色帳號（DB 啟動時尚無此帳號）
+userRepo.add({ email: USER_EMAIL, role: 'user' });
+
+function makeAdminToken() {
+  return jwt.sign({ email: ADMIN_EMAIL, role: 'admin' }, 'test-secret', { expiresIn: '1h' });
+}
+
+function makeUserToken() {
+  return jwt.sign({ email: USER_EMAIL, role: 'user' }, 'test-secret', { expiresIn: '1h' });
+}
+
+// backward-compat helper used by tests
 function makeToken(role) {
-  return jwt.sign({ email: 'joseph101039@gmail.com', role }, 'test-secret', { expiresIn: '1h' });
+  return role === 'admin' ? makeAdminToken() : makeUserToken();
 }
 
 test('GET /v1/users：admin token 應成功', async () => {

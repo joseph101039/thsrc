@@ -22,7 +22,7 @@ function roleBadge(role) {
   const style = role === 'admin'
     ? 'background:#cce5ff;color:#004085'
     : 'background:#d4edda;color:#155724';
-  return `<span style="${style};padding:2px 8px;border-radius:10px;font-size:12px;font-weight:600;">${role}</span>`;
+  return `<span style="${style};padding:2px 8px;border-radius:10px;font-size:12px;font-weight:600;">${escHtml(role)}</span>`;
 }
 
 function userRow(u, selfEmail) {

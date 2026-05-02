@@ -7,8 +7,11 @@ function listUsers() {
   return userRepo.getAll();
 }
 
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 function addUser({ email, role }) {
   if (!VALID_ROLES.includes(role)) return { success: false, error: '無效的角色' };
+  if (!EMAIL_RE.test(email)) return { success: false, error: '無效的 Email 格式' };
   return userRepo.add({ email, role });
 }
 
