@@ -31,8 +31,8 @@ const server = http.createServer((req, res) => {
     if (filePath.endsWith('api.js')) {
       data = Buffer.from(
         data.toString().replace(
-          /^const GAS_URL = .+/m,
-          `const GAS_URL = '${API_URL}';`
+          /^const API_URL = .+/m,
+          `const API_URL = '${API_URL}';`
         )
       );
     }

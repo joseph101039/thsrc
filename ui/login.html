@@ -48,13 +48,7 @@
       const errEl = document.getElementById('login-error');
       errEl.style.display = 'none';
       try {
-        const res = await fetch(window.__API_URL || 'https://api.joseph101039.uk', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'googleAuth', credential: response.credential }),
-        });
-        const data = await res.json();
-        if (data.error) throw new Error(data.error);
+        const data = await api.googleAuth(response.credential);
         localStorage.setItem('thsrc_jwt', data.token);
         const raw = sessionStorage.getItem('returnUrl') || 'index.html';
         sessionStorage.removeItem('returnUrl');

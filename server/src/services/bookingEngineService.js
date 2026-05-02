@@ -68,7 +68,8 @@ async function _doBooking(bookingId, booking) {
   bookingRepo.updateFields(bookingId, { trainNo: bestTrain.trainNo });
 
   const passenger = passengerRepo.getById(booking.passengerId);
-  console.log(`  [5/5] thsrcSubmitBooking trainNo=${bestTrain.trainNo} radioValue=${bestTrain.radioValue} passenger.idNumber=${passenger?.idNumber?.slice(0, 3)}... phone=${passenger?.phone} email=${passenger?.email}`);
+  if (!passenger) throw new Error('旅客資料不存在：' + booking.passengerId);
+  console.log(`  [5/5] thsrcSubmitBooking trainNo=${bestTrain.trainNo} radioValue=${bestTrain.radioValue} passenger.idNumber=${passenger.idNumber.slice(0, 3)}... phone=${passenger.phone} email=${passenger.email}`);
   const result = await thsrcSubmitBooking(queryCookieJar, s2FormAction, {
     trainNo: bestTrain.radioValue,
     captcha: captchaAnswer,
