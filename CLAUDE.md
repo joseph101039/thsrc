@@ -12,22 +12,54 @@ THSRC automated ticket-booking agent. Backend is a Node.js/Express server; front
 
 ## Development Notes
 
-**No PR flow** — This project pushes directly to `main`. Replace Step 8 (PR) in the global development workflow with deployment:
-1. Push code: `git push origin main`
-2. Deploy frontend: `git push origin main:gh-pages`
-3. Deploy backend: `DOCKERHUB_USER=joseph50804 bash server/deploy-server.sh`
 
-**Deploy only after all reviews pass** (Steps 5 Code Review + Step 6 Security Review must complete first).
+**Branch & PR flow** — Always open a branch before modifying code:
+- Feature: `git checkout -b feat-<name>`
+- Bug fix: `git checkout -b fix-<name>`
+
+Replace Step 8 (PR) in the global development workflow with two-phase deployment — **deploy only after the PR is merged and all reviews pass** (Steps 5 Code Review + Step 6 Security Review must complete first):
+1. **本地驗證**：`docker-compose up --build` 確認服務正常
+2. **合併 PR 並推送**：`git push origin main` + `git push origin main:gh-pages`（前端）
+3. **部署後端**：`DOCKERHUB_USER=joseph50804 bash server/deploy-server.sh`
 
 ---
 
 ## Deployment
 
-本地 docker-compose 主要用於開發測試，必須本地整合測試過沒問題才可以部署正式環境。
+部署分兩階段進行，**必須先完成第一階段本地驗證，才可執行第二階段正式部署**。
 
-生產環境部署使用以下流程：
+### 第一階段：本地 docker-compose 驗證
 
-### Node.js server
+```bash
+# 啟動所有本地服務（server + scheduler + captcha）
+docker-compose up --build
+# server → http://localhost:8081, captcha → http://localhost:8080
+
+# 啟動 UI dev server（透過環境變數注入 API_URL，無需改程式碼）
+cd ui && npm run dev
+# open http://localhost:8082
+```
+
+`ui/serve.js` injects `API_URL` env var into `api.js` at request time.
+Requires `.env.local` (git-ignored) with `GMAIL_USER` and `GMAIL_APP_PASSWORD`.
+
+本地確認沒問題後，才進行第二階段。
+
+---
+
+### 第二階段：推送 GitHub 並部署 GCE
+
+#### 2a. 推送程式碼
+
+```bash
+# 推送主分支
+git push origin main
+
+# 部署前端（GitHub Pages）
+git push origin main:gh-pages
+```
+
+#### 2b. 部署後端 Docker image
 
 ```bash
 DOCKERHUB_USER=joseph50804 bash server/deploy-server.sh
@@ -35,7 +67,7 @@ DOCKERHUB_USER=joseph50804 bash server/deploy-server.sh
 
 Builds `linux/amd64` image and pushes to `joseph50804/thsrc-server:latest`. VM cron job auto-pulls every 5 minutes.
 
-### 更新 VM 環境變數（production .env）
+#### 2c. 更新 VM 環境變數（如有需要）
 
 VM 的 `.env` 位於 `/home/joseph/.env`，透過 gcloud 存取：
 
@@ -49,22 +81,6 @@ gcloud compute ssh instance-20260427-141455 --zone=us-west1-b --project=sincere-
 # 重啟 server/scheduler 使新變數生效
 gcloud compute ssh instance-20260427-141455 --zone=us-west1-b --project=sincere-office-494609-m3 --command="cd ~ && docker compose up -d server scheduler"
 ```
-
-
-### Local dev (Docker)
-
-```bash
-# Run all services locally (server + scheduler + captcha)
-docker-compose up --build
-# server → http://localhost:8081, captcha → http://localhost:8080
-
-# Run UI dev server (injects API_URL via env var, no file edits needed)
-cd ui && npm run dev
-# open http://localhost:8082
-```
-
-`ui/serve.js` injects `API_URL` env var into `api.js` at request time.
-Requires `.env.local` (git-ignored) with `GMAIL_USER` and `GMAIL_APP_PASSWORD`.
 
 ## Architecture
 
@@ -99,6 +115,16 @@ captcha/     — CRNN+CTC captcha solver (see captcha/CLAUDE.md)
 **CAPTCHA auto-solve:** `booking_engine.js` POSTs base64 image to `CONFIG.CAPTCHA_API_URL + '/solve'` (`http://35.212.154.47:8080`). If the API fails or returns wrong answer, booking falls into `handleRetry`.
 
 **SQLite volume:** Data persists in Docker volume `db-data` mounted at `/app/data`. Both `server` and `scheduler` containers share the same volume.
+
+## Node Server Design Patterns
+
+- Follow SOLID principles.
+- Use async/await for all asynchronous operations (database, HTTP requests, etc.)
+- Centralize configuration in `config.js`
+- Use Express middleware for common concerns (e.g. JSON parsing, error handling)
+- controllers, services, repositories, models 分層
+- Error handling: API responses should include clear error messages and status codes. Log errors to the console for debugging.
+- Use environment variables for sensitive data (e.g. Gmail credentials) and configuration that may differ between local and production environments.
 
 ## Testing
 
