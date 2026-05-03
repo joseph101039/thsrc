@@ -9,10 +9,15 @@ const { thsrcInit, thsrcGetCaptcha, thsrcQueryTrains, thsrcSubmitBooking, select
 const BOOKING_TIMEOUT_MS = 120000;
 
 async function runBooking(bookingId) {
+  // Atomic CAS：只有搶到鎖（status pending→running）才執行，避免重複執行競態
+  const claimed = bookingRepo.tryClaimBooking(bookingId);
+  if (!claimed) {
+    console.log(`  [skip] bookingId=${bookingId} already claimed by another runner`);
+    return;
+  }
+
   const booking = bookingRepo.getById(bookingId);
   if (!booking) throw new Error('Booking not found: ' + bookingId);
-
-  bookingRepo.updateFields(bookingId, { status: CONFIG.BOOKING_STATUS.RUNNING });
 
   const timeout = new Promise((_, reject) =>
     setTimeout(() => reject(new Error('訂票逾時（120秒）')), BOOKING_TIMEOUT_MS)

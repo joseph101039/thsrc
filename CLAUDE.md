@@ -12,71 +12,38 @@ THSRC automated ticket-booking agent. Backend is a Node.js/Express server; front
 
 ## Development Flow
 
-Follow [CLAUDE.md](~/.claude/CLAUDE.md) workflow for all development. Key modifications to the standard workflow:
+Follow [CLAUDE.md](~/.claude/CLAUDE.md) workflow for all development. This project's stage order differs slightly:
 
-Code Review → Deploy local docker (build at development branch) → PR → After PR approval, push to main → Deploy to GCE (see Deployment section below)
-
-**Branch & PR flow** — Always open a branch before modifying code:
+**Branch first** — always before touching code:
 - Feature: `git checkout -b feat-<name>`
 - Bug fix: `git checkout -b fix-<name>`
 
----
+**Stages 1–4**: same as global (Brainstorm → Plan → Implement → Test)
+- 本專案大多是 server 內部小改動，除非涉及 auth/payment/external API，**跳過 Brainstorm + Plan 直接 Stage 3**
 
-## Deployment
+**Stage 5 — Review**: `/requesting-copilot-claude-review`；Option 2 (Push + PR) blocked until this completes
 
-部署分兩階段進行，**必須先完成第一階段本地驗證，才可執行第二階段正式部署**。
-
-### 第一階段：本地 docker-compose 驗證
-
+**Stage 6 — Local Docker Validation** *(project-specific gate before any push)*:
 ```bash
-# 啟動所有本地服務（server + scheduler + captcha）
-docker-compose up --build -d
-# ui → http://localhost:8082, server → http://localhost:8081, captcha → http://localhost:8080
-
-# 啟動 UI dev server（透過環境變數注入 API_URL，無需改程式碼）
-cd ui && npm run dev
-# open http://localhost:8082
+docker-compose up --build -d   # captcha:8080, server:8081, scheduler
+cd ui && npm run dev            # UI dev server: http://localhost:8082
 ```
+`ui/serve.js` injects `API_URL` at request time. Requires `.env.local` with `GMAIL_USER` + `GMAIL_APP_PASSWORD`.
 
-`ui/serve.js` injects `API_URL` env var into `api.js` at request time.
-Requires `.env.local` (git-ignored) with `GMAIL_USER` and `GMAIL_APP_PASSWORD`.
+**Stage 7 — Commit & PR**: `/commit` → ask "Open a PR now?" → `/pr`
 
-本地確認沒問題後，才進行第二階段。
-
----
-
-### 第二階段：推送 GitHub 並部署 GCE
-
-#### 2a. 推送程式碼
+**Stage 8 — Deploy** *(after PR approved and merged to main)*:
 
 ```bash
-# 推送主分支
+# 推送主分支 + 前端
 git push origin main
-
-# 部署前端（GitHub Pages）
 git push origin main:gh-pages
-```
 
-#### 2b. 部署後端 Docker image
-
-```bash
+# 後端 Docker image（VM cron 每 5 分鐘自動 pull）
 DOCKERHUB_USER=joseph50804 bash server/deploy-server.sh
-```
 
-Builds `linux/amd64` image and pushes to `joseph50804/thsrc-server:latest`. VM cron job auto-pulls every 5 minutes.
-
-#### 2c. 更新 VM 環境變數（如有需要）
-
-VM 的 `.env` 位於 `/home/joseph/.env`，透過 gcloud 存取：
-
-```bash
-# 查看目前 .env
-gcloud compute ssh instance-20260427-141455 --zone=us-west1-b --project=sincere-office-494609-m3 --command="cat ~/.env"
-
-# 新增或修改變數（追加）
+# 如需更新 VM 環境變數
 gcloud compute ssh instance-20260427-141455 --zone=us-west1-b --project=sincere-office-494609-m3 --command="echo 'KEY=VALUE' >> ~/.env"
-
-# 重啟 server/scheduler 使新變數生效
 gcloud compute ssh instance-20260427-141455 --zone=us-west1-b --project=sincere-office-494609-m3 --command="cd ~ && docker compose up -d server scheduler"
 ```
 
@@ -165,7 +132,7 @@ curl -X POST http://localhost:8081/ -H 'Content-Type: application/json' \
   -d '{"action":"getPassengers"}'
 ```
 
-## 重要：高鐵網站的 WAF 防護
+## 高鐵網站的 WAF 防護
 
 `irs.thsrc.com.tw` 使用 Akamai WAF，需要完整的 Chrome browser headers 才能連線。
 `thsrc.js` 已加入 `BROWSER_HEADERS` 常數（User-Agent、sec-ch-ua、Sec-Fetch-*、**Connection: keep-alive** 等），node-fetch 即可正常連線，不需要 Playwright。
@@ -173,7 +140,6 @@ curl -X POST http://localhost:8081/ -H 'Content-Type: application/json' \
 **必要 header：** `Connection: keep-alive` 是關鍵，缺少此 header 連線會 timeout（Akamai 不回應）。
 
 **必要 cookie：** `thsrcInit()` 初始連線時，Akamai 會在 `Set-Cookie` 回傳多組防護 cookie（`_abck`、`bm_sz`、`bm_sv`、`ak_bmsc`、`TS01*`、`IRS-SESSION`、`THSRC-IRS` 等）。後續所有請求必須帶**完整 cookie jar**，只帶 `JSESSIONID` 會被 WAF 攔截（回傳 HTML 而非圖片）。
-
 
 ### 驗證高鐵連線是否正常（用 curl）
 
