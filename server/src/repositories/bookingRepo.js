@@ -30,6 +30,7 @@ function updateFields(id, fields) {
   const colMap = {
     status: 'status', retryCount: 'retry_count', trainNo: 'train_no',
     ticketNo: 'ticket_no', scheduledAt: 'scheduled_at', updatedAt: 'updated_at',
+    refundStatus: 'refund_status', refundMessage: 'refund_message',
   };
   const setClauses = Object.keys(allFields)
     .filter(k => colMap[k])
