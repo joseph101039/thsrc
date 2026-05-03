@@ -240,3 +240,34 @@ test('POST /v1/bookings：retryWaitValue/Unit 應被儲存並回傳', async () =
     await new Promise(r => server.close(r));
   }
 });
+
+test('POST /v1/bookings：無效 retryWaitUnit 應回傳 400', async () => {
+  const server = http.createServer(app);
+  await new Promise(r => server.listen(0, r));
+  try {
+    const token = makeToken();
+    const res = await request(server, 'POST', '/v1/bookings', {
+      ...BOOKING_FIXTURE,
+      retryWaitUnit: 'hour',
+    }, { Authorization: `Bearer ${token}` });
+    assert.strictEqual(res.status, 400);
+  } finally {
+    await new Promise(r => server.close(r));
+  }
+});
+
+test('POST /v1/bookings：retryWaitValue 超出範圍應回傳 400', async () => {
+  const server = http.createServer(app);
+  await new Promise(r => server.listen(0, r));
+  try {
+    const token = makeToken();
+    const res = await request(server, 'POST', '/v1/bookings', {
+      ...BOOKING_FIXTURE,
+      retryWaitValue: 0,
+      retryWaitUnit: 'minute',
+    }, { Authorization: `Bearer ${token}` });
+    assert.strictEqual(res.status, 400);
+  } finally {
+    await new Promise(r => server.close(r));
+  }
+});

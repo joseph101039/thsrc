@@ -8,9 +8,15 @@ function listBookings() {
 }
 
 function createBooking(data) {
-  const { retryWaitUnit } = data;
+  const { retryWaitUnit, retryWaitValue } = data;
   if (retryWaitUnit !== undefined && !['minute', 'second'].includes(retryWaitUnit)) {
     throw Object.assign(new Error('retryWaitUnit 必須為 minute 或 second'), { status: 400 });
+  }
+  if (retryWaitValue !== undefined) {
+    const max = retryWaitUnit === 'second' ? 59 : 60;
+    if (!Number.isInteger(retryWaitValue) || retryWaitValue < 1 || retryWaitValue > max) {
+      throw Object.assign(new Error('retryWaitValue 超出允許範圍'), { status: 400 });
+    }
   }
   return bookingRepo.create(data);
 }
