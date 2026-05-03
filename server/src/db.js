@@ -82,6 +82,9 @@ function _migrate(db) {
   if (!bookingCols.includes('refund_message')) {
     db.exec("ALTER TABLE bookings ADD COLUMN refund_message TEXT");
   }
+  if (!bookingCols.includes('depart_time')) {
+    db.exec("ALTER TABLE bookings ADD COLUMN depart_time TEXT");
+  }
 }
 
 function _toCamel(row) {

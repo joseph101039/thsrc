@@ -86,6 +86,7 @@ async function _doBooking(bookingId, booking) {
     bookingRepo.updateFields(bookingId, {
       status: CONFIG.BOOKING_STATUS.SUCCESS,
       ticketNo: result.ticketNo,
+      departTime: bestTrain.departTime,
     });
     bookingRepo.createAttempt({ bookingId, success: true, reason: null });
     console.log('  [done] 訂票成功：', bookingId, result.ticketNo);
