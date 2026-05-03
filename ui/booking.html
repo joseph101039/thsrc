@@ -40,18 +40,18 @@
       </div>
       <div class="form-group">
         <label>期望時間</label>
-        <input type="time" id="b-desired-time" value="09:00">
+        <input type="text" id="b-desired-time" value="09:00" placeholder="HH:MM" maxlength="5" inputmode="numeric" data-timepicker autocomplete="off">
       </div>
     </div>
 
     <div class="form-row">
       <div class="form-group">
         <label>允許最早</label>
-        <input type="time" id="b-earliest" value="08:00">
+        <input type="text" id="b-earliest" value="08:00" placeholder="HH:MM" maxlength="5" inputmode="numeric" data-timepicker autocomplete="off">
       </div>
       <div class="form-group">
         <label>允許最晚</label>
-        <input type="time" id="b-latest" value="11:00">
+        <input type="text" id="b-latest" value="11:00" placeholder="HH:MM" maxlength="5" inputmode="numeric" data-timepicker autocomplete="off">
       </div>
     </div>
 
@@ -75,7 +75,7 @@
       </div>
       <div class="form-group">
         <label>預約時間</label>
-        <input type="time" id="b-schedule-time">
+        <input type="text" id="b-schedule-time" placeholder="HH:MM" maxlength="5" inputmode="numeric" data-timepicker autocomplete="off">
       </div>
     </div>
 
@@ -99,6 +99,7 @@
 
   <script src="js/auth.js"></script>
   <script src="js/api.js"></script>
+  <script src="js/time-picker.js"></script>
   <script src="js/booking.js"></script>
 </body>
 </html>
