@@ -18,4 +18,8 @@ function getAttempts(bookingId) {
   return bookingRepo.getAttemptsByBookingId(bookingId);
 }
 
-module.exports = { listBookings, createBooking, deleteBooking, getAttempts };
+function getBookingById(id) {
+  return bookingRepo.getById(id);
+}
+
+module.exports = { listBookings, createBooking, deleteBooking, getAttempts, getBookingById };
