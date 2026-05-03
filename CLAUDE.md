@@ -29,9 +29,9 @@ docker-compose up --build -d   # captcha:8080, server:8081, scheduler
 ```
 `ui/serve.js` injects `API_URL` at request time. Requires `.env.local` with `GMAIL_USER` + `GMAIL_APP_PASSWORD`.
 
-**Stage 7 — Commit & PR**: `/commit` → ask "Open a PR now?" → `/pr`
+**Stage 7 — PR**: ask "Open a PR now?" → `/pr`
 
-**Stage 8 — Deploy** *(after PR approved and merged to main)*:
+**Stage 8 — Production Deploy** *(after PR approved and merged to main)*:
 
 ```bash
 # 推送主分支 + 前端
