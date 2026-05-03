@@ -26,7 +26,6 @@ Follow [CLAUDE.md](~/.claude/CLAUDE.md) workflow for all development. This proje
 **Stage 6 — Local Docker Validation** *(project-specific gate before any push)*:
 ```bash
 docker-compose up --build -d   # captcha:8080, server:8081, scheduler
-cd ui && npm run dev            # UI dev server: http://localhost:8082
 ```
 `ui/serve.js` injects `API_URL` at request time. Requires `.env.local` with `GMAIL_USER` + `GMAIL_APP_PASSWORD`.
 
