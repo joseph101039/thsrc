@@ -12,10 +12,14 @@ function renderAttemptReason(a) {
 }
 
 const STATUS_LABEL = {
-  pending: { text: '等待中', cls: 'badge-pending' },
-  running: { text: '搶票中', cls: 'badge-running' },
-  success: { text: '成功',   cls: 'badge-success' },
-  failed:  { text: '失敗',   cls: 'badge-failed'  },
+  pending:       { text: '等待中',  cls: 'badge-pending'   },
+  running:       { text: '搶票中',  cls: 'badge-running'   },
+  success:       { text: '成功',    cls: 'badge-success'   },
+  failed:        { text: '失敗',    cls: 'badge-failed'    },
+  cancelled:     { text: '已取消',  cls: 'badge-cancelled' },
+  refunding:     { text: '退票中',  cls: 'badge-refunding' },
+  refunded:      { text: '已退票',  cls: 'badge-refunded'  },
+  refund_failed: { text: '退票失敗', cls: 'badge-failed'   },
 };
 
 function formatTW(isoStr) {

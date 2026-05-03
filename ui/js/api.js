@@ -53,6 +53,7 @@ const api = {
   getBookings:        ()           => getJson('/v1/bookings'),
   createBooking:      (data)       => postJson('/v1/bookings', data),
   deleteBooking:      (id)         => deleteJson(`/v1/bookings/${id}`),
+  cancelBooking:      (id)         => postJson(`/v1/bookings/${id}/cancel`, {}),
   refundBooking:      (id)         => postJson(`/v1/bookings/${id}/refund`, {}),
   getBookingAttempts: (id)         => getJson(`/v1/bookings/${id}/attempts`),
   getAllowedUsers:     ()           => getJson('/v1/users'),

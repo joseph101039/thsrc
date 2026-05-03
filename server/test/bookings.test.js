@@ -101,11 +101,63 @@ test('DELETE /v1/bookings/:id：刪除後不應出現在列表', async () => {
     const createRes = await request(server, 'POST', '/v1/bookings', BOOKING_FIXTURE, { Authorization: `Bearer ${token}` });
     const id = createRes.body.id;
 
+    // 先取消（pending → cancelled），才能刪除
+    const cancelRes = await request(server, 'POST', `/v1/bookings/${id}/cancel`, null, { Authorization: `Bearer ${token}` });
+    assert.strictEqual(cancelRes.status, 200);
+
     const delRes = await request(server, 'DELETE', `/v1/bookings/${id}`, null, { Authorization: `Bearer ${token}` });
     assert.strictEqual(delRes.status, 200);
 
     const listRes = await request(server, 'GET', '/v1/bookings', null, { Authorization: `Bearer ${token}` });
     assert.ok(!listRes.body.bookings.some(b => b.id === id));
+  } finally {
+    await new Promise(r => server.close(r));
+  }
+});
+
+test('POST /v1/bookings/:id/cancel：取消 pending 訂票應成功並寫入嘗試紀錄', async () => {
+  const server = http.createServer(app);
+  await new Promise(r => server.listen(0, r));
+  try {
+    const token = makeToken();
+    const createRes = await request(server, 'POST', '/v1/bookings', BOOKING_FIXTURE, { Authorization: `Bearer ${token}` });
+    const id = createRes.body.id;
+
+    const cancelRes = await request(server, 'POST', `/v1/bookings/${id}/cancel`, null, { Authorization: `Bearer ${token}` });
+    assert.strictEqual(cancelRes.status, 200);
+    assert.strictEqual(cancelRes.body.success, true);
+
+    // 確認狀態為 cancelled
+    const listRes = await request(server, 'GET', '/v1/bookings', null, { Authorization: `Bearer ${token}` });
+    const booking = listRes.body.bookings.find(b => b.id === id);
+    assert.strictEqual(booking.status, 'cancelled');
+
+    // 確認嘗試紀錄含取消原因
+    const attemptsRes = await request(server, 'GET', `/v1/bookings/${id}/attempts`, null, { Authorization: `Bearer ${token}` });
+    assert.ok(attemptsRes.body.attempts.some(a => a.reason === '使用者取消'));
+
+    // 再次取消應回傳 400
+    const cancelAgainRes = await request(server, 'POST', `/v1/bookings/${id}/cancel`, null, { Authorization: `Bearer ${token}` });
+    assert.strictEqual(cancelAgainRes.status, 400);
+  } finally {
+    await new Promise(r => server.close(r));
+  }
+});
+
+test('DELETE /v1/bookings/:id：pending 狀態應回傳 400', async () => {
+  const server = http.createServer(app);
+  await new Promise(r => server.listen(0, r));
+  try {
+    const token = makeToken();
+    const createRes = await request(server, 'POST', '/v1/bookings', BOOKING_FIXTURE, { Authorization: `Bearer ${token}` });
+    const id = createRes.body.id;
+
+    const delRes = await request(server, 'DELETE', `/v1/bookings/${id}`, null, { Authorization: `Bearer ${token}` });
+    assert.strictEqual(delRes.status, 400);
+
+    // 清理
+    await request(server, 'POST', `/v1/bookings/${id}/cancel`, null, { Authorization: `Bearer ${token}` });
+    await request(server, 'DELETE', `/v1/bookings/${id}`, null, { Authorization: `Bearer ${token}` });
   } finally {
     await new Promise(r => server.close(r));
   }

@@ -29,6 +29,7 @@ const CONFIG = {
     RUNNING: 'running',
     SUCCESS: 'success',
     FAILED: 'failed',
+    CANCELLED: 'cancelled',
   },
 
   REFUND_STATUS: {
