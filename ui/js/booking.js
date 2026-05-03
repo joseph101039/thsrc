@@ -42,10 +42,6 @@ async function loadPassengers() {
   }
 }
 
-function isValidTime(t) {
-  return /^([01]\d|2[0-3]):[0-5]\d$/.test(t);
-}
-
 async function submitBooking() {
   const passengerId  = document.getElementById('b-passenger').value;
   const fromStation  = document.getElementById('b-from').value;
@@ -59,9 +55,8 @@ async function submitBooking() {
   if (!passengerId)                { alert('請選擇乘客'); return; }
   if (!date)                       { alert('請選擇乘車日期'); return; }
   if (fromStation === toStation)   { alert('出發站與到達站不能相同'); return; }
-  if (!isValidTime(desiredTime))   { alert('期望時間格式錯誤，請輸入 HH:MM（24小時制）'); return; }
-  if (!isValidTime(earliestTime))  { alert('允許最早格式錯誤，請輸入 HH:MM（24小時制）'); return; }
-  if (!isValidTime(latestTime))    { alert('允許最晚格式錯誤，請輸入 HH:MM（24小時制）'); return; }
+  if (!desiredTime)                { alert('請選擇期望時間'); return; }
+  if (!earliestTime || !latestTime){ alert('請選擇允許時間區間'); return; }
   if (earliestTime >= latestTime)  { alert('最早時間必須早於最晚時間'); return; }
 
   let scheduledAt = null;
@@ -69,7 +64,6 @@ async function submitBooking() {
     const schedDate = document.getElementById('b-schedule-date').value;
     const schedTime = document.getElementById('b-schedule-time').value;
     if (!schedDate || !schedTime) { alert('請填寫預約日期和時間'); return; }
-    if (!isValidTime(schedTime))  { alert('預約時間格式錯誤，請輸入 HH:MM（24小時制）'); return; }
     scheduledAt = new Date(schedDate + 'T' + schedTime + ':00').toISOString();
   }
 
