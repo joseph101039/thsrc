@@ -99,5 +99,19 @@ const tomorrowStr = tomorrow.toISOString().slice(0, 10);
 document.getElementById('b-date').value = tomorrowStr;
 document.getElementById('b-schedule-date').value = tomorrowStr;
 
+// 依期望時間自動更新允許最早（-2hr）和最晚（+2hr）
+function updateTimeRange() {
+  const desired = document.getElementById('b-desired-time').value;
+  if (!isValidTime(desired)) return;
+  const [h, m] = desired.split(':').map(Number);
+  const earliestH = ((h - 2 + 24) % 24).toString().padStart(2, '0');
+  const latestH   = ((h + 2) % 24).toString().padStart(2, '0');
+  document.getElementById('b-earliest').value = `${earliestH}:${m.toString().padStart(2, '0')}`;
+  document.getElementById('b-latest').value   = `${latestH}:${m.toString().padStart(2, '0')}`;
+}
+
+document.getElementById('b-desired-time').addEventListener('change', updateTimeRange);
+updateTimeRange();
+
 initStationSelects();
 loadPassengers();
