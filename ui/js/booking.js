@@ -50,7 +50,9 @@ async function submitBooking() {
   const desiredTime  = document.getElementById('b-desired-time').value;
   const earliestTime = document.getElementById('b-earliest').value;
   const latestTime   = document.getElementById('b-latest').value;
-  const maxRetries   = parseInt(document.getElementById('b-max-retries').value);
+  const maxRetries     = parseInt(document.getElementById('b-max-retries').value);
+  const retryWaitValue = parseInt(document.getElementById('b-retry-wait-value').value);
+  const retryWaitUnit  = document.getElementById('b-retry-wait-unit').value;
 
   if (!passengerId)                { alert('請選擇乘客'); return; }
   if (!date)                       { alert('請選擇乘車日期'); return; }
@@ -58,6 +60,11 @@ async function submitBooking() {
   if (!desiredTime)                { alert('請選擇期望時間'); return; }
   if (!earliestTime || !latestTime){ alert('請選擇允許時間區間'); return; }
   if (earliestTime >= latestTime)  { alert('最早時間必須早於最晚時間'); return; }
+  const maxWait = retryWaitUnit === 'minute' ? 60 : 59;
+  if (!retryWaitValue || retryWaitValue < 1 || retryWaitValue > maxWait) {
+    alert(`重試間隔：分鐘請填 1–60，秒請填 1–59`);
+    return;
+  }
 
   let scheduledAt = null;
   if (bookingMode === 'scheduled') {
@@ -76,6 +83,7 @@ async function submitBooking() {
       passengerId, fromStation, toStation, date,
       desiredTime, earliestTime, latestTime,
       maxRetries, scheduledAt,
+      retryWaitValue, retryWaitUnit,
       immediate: bookingMode === 'immediate',
     });
     location.href = 'index.html';
