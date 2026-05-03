@@ -1,8 +1,25 @@
+function escapeHtml(str) {
+  return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function renderAttemptReason(a) {
+  if (a.reason) {
+    const color = a.success ? 'var(--success)' : 'var(--danger)';
+    return `<div class="attempt-reason" style="color:${color}">${escapeHtml(a.reason)}</div>`;
+  }
+  if (a.success) return '<div class="attempt-reason" style="color:var(--success)">訂票成功</div>';
+  return '';
+}
+
 const STATUS_LABEL = {
-  pending: { text: '等待中', cls: 'badge-pending' },
-  running: { text: '搶票中', cls: 'badge-running' },
-  success: { text: '成功',   cls: 'badge-success' },
-  failed:  { text: '失敗',   cls: 'badge-failed'  },
+  pending:       { text: '等待中',  cls: 'badge-pending'   },
+  running:       { text: '搶票中',  cls: 'badge-running'   },
+  success:       { text: '成功',    cls: 'badge-success'   },
+  failed:        { text: '失敗',    cls: 'badge-failed'    },
+  cancelled:     { text: '已取消',  cls: 'badge-cancelled' },
+  refunding:     { text: '退票中',  cls: 'badge-refunding' },
+  refunded:      { text: '已退票',  cls: 'badge-refunded'  },
+  refund_failed: { text: '退票失敗', cls: 'badge-failed'   },
 };
 
 function formatTW(isoStr) {
@@ -26,7 +43,7 @@ function renderDetail(booking, attempts) {
           <div class="attempt-body">
             <div class="attempt-seq">第 ${i + 1} 次嘗試</div>
             <div class="attempt-time">${formatTW(a.attemptedAt)}</div>
-            ${!a.success && a.reason ? `<div class="attempt-reason">${a.reason}</div>` : ''}
+            ${renderAttemptReason(a)}
           </div>
         </li>`).join('')}</ul>`;
 

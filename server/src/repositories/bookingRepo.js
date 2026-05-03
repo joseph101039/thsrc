@@ -66,6 +66,16 @@ function getAllOverduePending() {
   `).all(new Date().toISOString()).map(_toCamel);
 }
 
+// Atomic CAS：只有在 status 仍為 'pending' 時才更新為 'cancelled'，回傳是否成功
+function cancelIfPending(id) {
+  const now = new Date().toISOString();
+  const result = getDb().prepare(`
+    UPDATE bookings SET status = 'cancelled', updated_at = ?
+    WHERE id = ? AND status = 'pending'
+  `).run(now, id);
+  return result.changes === 1;
+}
+
 // Atomic CAS：只有在 status 仍為 'pending' 時才更新為 'running'，回傳是否搶到鎖
 function tryClaimBooking(id) {
   const now = new Date().toISOString();
@@ -122,6 +132,6 @@ function getAttemptsByBookingId(bookingId) {
 
 module.exports = {
   getAll, getById, create, updateFields, deleteById,
-  getPending, getAllOverduePending, getPendingWithin, tryClaimBooking, getStuckRunning, getStuckRefunding,
+  getPending, getAllOverduePending, getPendingWithin, tryClaimBooking, cancelIfPending, getStuckRunning, getStuckRefunding,
   createAttempt, getAttemptsByBookingId,
 };

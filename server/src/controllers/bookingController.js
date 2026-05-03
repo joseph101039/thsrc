@@ -98,7 +98,7 @@ function deleteBooking(req, res) {
     res.json(bookingService.deleteBooking(req.params.id));
   } catch (err) {
     console.error('deleteBooking error:', err.message);
-    res.status(500).json({ error: err.message });
+    res.status(err.status || 500).json({ error: err.message });
   }
 }
 
@@ -138,6 +138,37 @@ function getAttempts(req, res) {
   }
 }
 
+/**
+ * @swagger
+ * /v1/bookings/{id}/cancel:
+ *   post:
+ *     summary: 取消等待中的訂票
+ *     tags: [Bookings]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: 取消成功
+ *       400:
+ *         description: 狀態不允許取消
+ *       404:
+ *         description: 找不到訂票
+ */
+function cancelBooking(req, res) {
+  try {
+    res.json(bookingService.cancelBooking(req.params.id));
+  } catch (err) {
+    console.error('cancelBooking error:', err.message);
+    res.status(err.status || 500).json({ error: err.message });
+  }
+}
+
 function refundBooking(req, res) {
   try {
     const booking = bookingService.getBookingById(req.params.id);
@@ -161,4 +192,4 @@ function refundBooking(req, res) {
   }
 }
 
-module.exports = { listBookings, createBooking, deleteBooking, getAttempts, refundBooking };
+module.exports = { listBookings, createBooking, deleteBooking, cancelBooking, getAttempts, refundBooking };
