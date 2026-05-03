@@ -1,6 +1,7 @@
 (function () {
-  const HOURS = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0'));
-  const MINS  = ['00', '10', '20', '30', '40', '50'];
+  const HOURS   = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0'));
+  const MINS    = ['00', '10', '20', '30', '40', '50'];
+  const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
 
   let panel, hourVal, minVal, activeInput;
 
@@ -55,36 +56,44 @@
         close();
       }
     });
+
+    // scroll / resize 時關閉 picker，避免 panel 漂走
+    window.addEventListener('scroll', close, { passive: true });
+    window.addEventListener('resize', close, { passive: true });
   }
 
   function stepHour(dir) {
-    const idx = (HOURS.indexOf(hourVal.textContent) + dir + 24) % 24;
-    hourVal.textContent = HOURS[idx];
+    const current = hourVal.textContent.padStart(2, '0');
+    const idx = (HOURS.indexOf(current) + dir + 24) % 24;
+    hourVal.textContent = HOURS[Math.max(0, idx)];
   }
 
   function stepMin(dir) {
-    const idx = (MINS.indexOf(minVal.textContent) + dir + MINS.length) % MINS.length;
-    minVal.textContent = MINS[idx];
+    const current = minVal.textContent.padStart(2, '0');
+    const idx = (MINS.indexOf(current) + dir + MINS.length) % MINS.length;
+    minVal.textContent = MINS[Math.max(0, idx)];
   }
 
   function open(input) {
     if (!panel) buildPanel();
     activeInput = input;
 
-    // 從 input 現有值初始化滾輪
+    // 從 input 現有值初始化滾輪；無效值則 reset 為 08:00
     const val = input.value;
-    if (/^([01]\d|2[0-3]):[0-5]\d$/.test(val)) {
+    if (TIME_RE.test(val)) {
       const [h, m] = val.split(':');
       hourVal.textContent = h;
-      // 對齊到最近的 10 分鐘刻度
       const mSnap = MINS.reduce((a, b) => Math.abs(+b - +m) < Math.abs(+a - +m) ? b : a);
       minVal.textContent = mSnap;
+    } else {
+      hourVal.textContent = '08';
+      minVal.textContent  = '00';
     }
 
     // 定位到 input 正下方，並防止右側超出 viewport
-    const rect = input.getBoundingClientRect();
+    const rect  = input.getBoundingClientRect();
     const panelW = 200;
-    const left = Math.min(rect.left, window.innerWidth - panelW - 8);
+    const left  = Math.min(rect.left, window.innerWidth - panelW - 8);
     panel.style.top  = (rect.bottom + window.scrollY + 4) + 'px';
     panel.style.left = Math.max(8, left) + 'px';
     panel.classList.add('open');
@@ -106,10 +115,12 @@
   // 綁定所有 [data-timepicker] input
   document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('[data-timepicker]').forEach(input => {
+      // readonly 防止 iOS/Android 彈出 native keyboard
+      input.setAttribute('readonly', '');
       input.addEventListener('click', () => open(input));
       input.addEventListener('blur', () => {
         const v = input.value;
-        if (v && !/^([01]\d|2[0-3]):[0-5]\d$/.test(v)) {
+        if (v && !TIME_RE.test(v)) {
           input.classList.add('input-error');
         } else {
           input.classList.remove('input-error');

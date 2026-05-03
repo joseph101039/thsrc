@@ -59,7 +59,7 @@ function renderDetail(booking, attempts) {
       <div class="card-sub">允許區間：${booking.earliestTime} ~ ${booking.latestTime}</div>
       ${booking.scheduledAt ? `<div class="card-sub">預約時間：${formatTW(booking.scheduledAt)}</div>` : ''}
       <div class="card-sub">嘗試次數：${booking.retryCount || 0} / ${booking.maxRetries}</div>
-      ${booking.ticketNo && booking.trainNo ? `<div class="card-sub" style="color:var(--success);font-weight:600;margin-top:8px">車次：${booking.trainNo}　出發：${booking.departTime || '—'}</div>` : ''}
+      ${booking.ticketNo && booking.trainNo ? `<div class="card-sub" style="color:var(--success);font-weight:600;margin-top:8px">車次：${escapeHtml(booking.trainNo)}　出發：${escapeHtml(booking.departTime || '—')}</div>` : ''}
       ${booking.ticketNo ? `<div class="card-sub" style="color:var(--success);font-weight:600">訂位代號：${booking.ticketNo}</div>` : ''}
     </div>
 

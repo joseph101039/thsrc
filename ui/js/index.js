@@ -70,7 +70,7 @@ function bookingCard(b) {
       <div class="card-sub">允許區間：${b.earliestTime} ~ ${b.latestTime}</div>
       ${scheduledInfo}
       <div class="card-sub">嘗試次數：${b.retryCount || 0} / ${b.maxRetries}</div>
-      ${b.ticketNo && b.trainNo ? `<div class="card-sub" style="color:var(--success);font-weight:600">車次：${b.trainNo}　出發：${b.departTime || '—'}</div>` : ''}
+      ${b.ticketNo && b.trainNo ? `<div class="card-sub" style="color:var(--success);font-weight:600">車次：${escapeHtml(b.trainNo)}　出發：${escapeHtml(b.departTime || '—')}</div>` : ''}
       ${b.ticketNo ? `<div class="card-sub" style="color:var(--success);font-weight:600">訂位代號：${b.ticketNo}${copyIcon}</div>` : ''}
       ${refundMsg}
       ${updatedInfo}
