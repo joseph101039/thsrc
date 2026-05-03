@@ -317,8 +317,6 @@ body {
   cursor: pointer;
 }
 .time-picker-confirm:active { opacity: 0.8; }
-.date-picker-panel { width: 260px; }
-.dp-wide { width: 52px; font-size: 22px; }
 .input-error {
   border-color: var(--danger) !important;
   box-shadow: 0 0 0 3px rgba(231,76,60,0.15) !important;

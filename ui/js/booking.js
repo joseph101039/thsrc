@@ -104,10 +104,11 @@ function updateTimeRange() {
   const desired = document.getElementById('b-desired-time').value;
   if (!isValidTime(desired)) return;
   const [h, m] = desired.split(':').map(Number);
-  const earliestH = ((h - 2 + 24) % 24).toString().padStart(2, '0');
-  const latestH   = ((h + 2) % 24).toString().padStart(2, '0');
-  document.getElementById('b-earliest').value = `${earliestH}:${m.toString().padStart(2, '0')}`;
-  document.getElementById('b-latest').value   = `${latestH}:${m.toString().padStart(2, '0')}`;
+  const mStr = m.toString().padStart(2, '0');
+  const earliestH = Math.max(0, h - 2).toString().padStart(2, '0');
+  const latestH   = Math.min(23, h + 2).toString().padStart(2, '0');
+  document.getElementById('b-earliest').value = `${earliestH}:${mStr}`;
+  document.getElementById('b-latest').value   = `${latestH}:${mStr}`;
 }
 
 document.getElementById('b-desired-time').addEventListener('change', updateTimeRange);
