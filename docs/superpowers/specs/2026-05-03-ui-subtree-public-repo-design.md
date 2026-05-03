@@ -62,7 +62,14 @@ push 後 GitHub Pages 自動重新部署（通常 1–2 分鐘）。
 - `ui/js/api.js`：第一行不需要改，production URL 維持 hard-code
 - `ui/serve.js`、`ui/package.json`：一起移入 `thsrc-booking`，行為不變
 - `docker-compose.yml`：`ui/serve.js` 路徑不變，無需修改
-- CLAUDE.md 中的部署指令：`git push origin main:gh-pages` 將改為 `git subtree push --prefix=ui ui main`
+
+## 需要更新 CLAUDE.md 的部分
+
+| 位置 | 原內容 | 新內容 |
+|------|--------|--------|
+| Project Overview — UI 網址 | `https://joseph101039.github.io/thsrc/ui/` | `https://joseph101039.github.io/thsrc-booking/` |
+| Stage 9 部署指令 | `git push origin main:gh-pages` | `git subtree push --prefix=ui ui main` |
+| Architecture — ui/ 說明 | `deployed via git push origin main:gh-pages` | `deployed via git subtree push --prefix=ui ui main` |
 
 ## 注意事項
 
