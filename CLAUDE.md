@@ -86,7 +86,7 @@ server/                — Node.js/Express backend + job scheduler; deployed to 
       auth.js           — JWT verification middleware
       adminOnly.js      — role-guard middleware (rejects non-admin)
   Dockerfile            — builds linux/amd64 image; includes --experimental-sqlite flag in CMD
-captcha/               — CRNN+CTC solver (git subtree); deployed separately; see captcha/CLAUDE.md for details
+captcha/               — CRNN+CTC solver; deployed separately; see captcha/CLAUDE.md for details
 docker-compose.yml     — orchestrates: captcha (8080), server (8081), scheduler; defines shared db-data volume
 .env.local             — (git-ignored) local overrides: GMAIL_USER, GMAIL_APP_PASSWORD
 ```
@@ -166,7 +166,7 @@ curl --location 'https://irs.thsrc.com.tw/IMINT/' \
 
 ## Captcha Solver (`captcha/`)
 
-The `captcha/` directory is part of this monorepo (merged via `git subtree`). See `captcha/CLAUDE.md` for full documentation.
+The `captcha/` directory is part of this monorepo. See `captcha/CLAUDE.md` for full documentation.
 
 - **Live API:**  `https://api.joseph101039.uk/` (also http://35.212.154.47:8080)
 - **Deploy:** `DOCKERHUB_USER=joseph50804 ./captcha/apiserver/deploy-gce.sh`
