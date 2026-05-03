@@ -370,6 +370,165 @@ async function _postAndFollow(url, cookieJar, body, headersFn, expectFormKey) {
   return { html, cookieJar: updatedJar, s3FormAction: nextFormAction };
 }
 
+// passenger: { idNumber }
+// 退票流程：History 頁初始化 → 查詢訂單 → 點擊取消 → 確認取消 → 解析結果
+async function thsrcCancelBooking(ticketNo, passenger) {
+  const HISTORY_URL = THSRC_BASE + '/IMINT/?wicket:bookmarkablePage=:tw.com.mitac.webapp.thsr.viewer.History';
+  const NAV_HEADERS = {
+    ...BROWSER_HEADERS,
+    'Sec-Fetch-Dest': 'document',
+    'Sec-Fetch-Mode': 'navigate',
+    'Sec-Fetch-Site': 'none',
+    'Sec-Fetch-User': '?1',
+  };
+
+  // [1/6] 初始化 session（兩段式，同 thsrcInit）
+  console.log('  [退票 1/6] thsrcCancelBooking init session...');
+  const res1 = await fetchWithTimeout(HISTORY_URL, { redirect: 'manual', headers: NAV_HEADERS });
+  const cookies1 = res1.headers.raw()['set-cookie'] || [];
+  const cookieJar1 = cookies1.map(c => c.split(';')[0].trim()).join('; ');
+
+  const res2 = await fetchWithTimeout(HISTORY_URL, {
+    redirect: 'follow',
+    headers: { ...NAV_HEADERS, 'Cookie': cookieJar1 },
+  });
+  const cookies2 = res2.headers.raw()['set-cookie'] || [];
+  const historyHtml = await res2.text();
+
+  const cookieMap = new Map();
+  for (const c of [...cookies1, ...cookies2]) {
+    const kv = c.split(';')[0].trim();
+    const key = kv.split('=')[0];
+    cookieMap.set(key, kv);
+  }
+  let cookieJar = Array.from(cookieMap.values()).join('; ');
+
+  // 解析 HistoryForm action（含 jsessionid）
+  const historyFormMatch = historyHtml.match(/action="(\/IMINT\/[^"]*HistoryForm[^"]*)"/);
+  if (!historyFormMatch) throw new Error('找不到 HistoryForm action');
+  const historyFormAction = THSRC_BASE + historyFormMatch[1];
+  console.log('  [退票 1/6] done — historyFormAction=', historyFormAction.slice(0, 80) + '...');
+
+  // [2/6] 取 captcha（與訂票頁相同格式：passCode IResourceListener）
+  console.log('  [退票 2/6] 取驗證碼...');
+  const captchaUrlMatch = historyHtml.match(/src="(\/IMINT\/[^"]*passCode[^"]*)"/);
+  if (!captchaUrlMatch) throw new Error('找不到 History 頁驗證碼 URL');
+  const captchaUrl = THSRC_BASE + captchaUrlMatch[1];
+  const captchaBase64 = await thsrcGetCaptcha(cookieJar, captchaUrl);
+
+  console.log('  [退票 2/6] solving captcha...');
+  const captchaRes = await fetch(CONFIG.CAPTCHA_API_URL + '/solve', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ image: captchaBase64 }),
+  });
+  const captchaJson = await captchaRes.json();
+  if (!captchaJson.answer) throw new Error('驗證碼辨識失敗：' + JSON.stringify(captchaJson));
+  const captchaAnswer = captchaJson.answer;
+  console.log('  [退票 2/6] done — answer=', captchaAnswer);
+
+  // [3/6] POST HistoryForm 查詢訂單
+  console.log('  [退票 3/6] POST 查詢訂單', ticketNo, '...');
+  const POST_HEADERS = (jar) => ({
+    ...BROWSER_HEADERS,
+    'Content-Type': 'application/x-www-form-urlencoded',
+    'Cache-Control': 'max-age=0',
+    'Cookie': jar,
+    'Referer': HISTORY_URL,
+    'Origin': THSRC_BASE,
+    'Sec-Fetch-Dest': 'document',
+    'Sec-Fetch-Mode': 'navigate',
+    'Sec-Fetch-Site': 'same-origin',
+    'Sec-Fetch-User': '?1',
+  });
+
+  const historyPayload = new URLSearchParams({
+    'HistoryForm:hf:0': '',
+    typesofid: '0',
+    rocId: passenger.idNumber,
+    orderId: ticketNo,
+    'divCaptcha:securityCode': captchaAnswer,
+    SubmitButton: '查詢',
+  });
+
+  const { html: detailHtml, cookieJar: jar3 } = await _postAndFollow(
+    historyFormAction, cookieJar, historyPayload.toString(), POST_HEADERS, null
+  );
+  cookieJar = jar3;
+  console.log('  [退票 3/6] done — detailHtml len=', detailHtml.length);
+
+  // [4/6] 解析 CancelSeatsButton ILinkListener 連結並 GET
+  // 實際 HTML：<a href="/IMINT/?wicket:interface=...:CancelSeatsButton::ILinkListener">取消訂位</a>
+  console.log('  [退票 4/6] 點擊取消訂位按鈕...');
+  const cancelBtnMatch = detailHtml.match(/href="(\/IMINT\/[^"]*CancelSeatsButton[^"]*)"/);
+  if (!cancelBtnMatch) throw new Error('找不到取消訂位按鈕連結（訂單可能無法退票或已付款）');
+  const cancelBtnUrl = THSRC_BASE + cancelBtnMatch[1];
+
+  const cancelBtnRes = await fetchWithTimeout(cancelBtnUrl, {
+    redirect: 'manual',
+    headers: {
+      ...BROWSER_HEADERS,
+      'Cookie': cookieJar,
+      'Referer': THSRC_BASE + '/IMINT/',
+      'Sec-Fetch-Dest': 'document',
+      'Sec-Fetch-Mode': 'navigate',
+      'Sec-Fetch-Site': 'same-origin',
+    },
+  });
+  const cancelBtnCookies = cancelBtnRes.headers.raw()['set-cookie'] || [];
+  const cancelBtnRedirect = cancelBtnRes.headers.get('location');
+
+  // 合併 cookie
+  const cmapBtn = new Map();
+  for (const c of cookieJar.split(';')) { const kv = c.trim(); const key = kv.split('=')[0]; if (key) cmapBtn.set(key, kv); }
+  for (const c of cancelBtnCookies) { const kv = c.split(';')[0].trim(); const key = kv.split('=')[0]; cmapBtn.set(key, kv); }
+  cookieJar = Array.from(cmapBtn.values()).join('; ');
+
+  const cancelConfirmUrl = cancelBtnRedirect
+    ? (cancelBtnRedirect.startsWith('http') ? cancelBtnRedirect : THSRC_BASE + cancelBtnRedirect)
+    : cancelBtnUrl;
+
+  // [5/6] GET 取消確認頁，解析 HistoryDetailsCancelForm action
+  console.log('  [退票 5/6] 取消確認頁...');
+  const confirmRes = await fetchWithTimeout(cancelConfirmUrl, {
+    headers: {
+      ...BROWSER_HEADERS,
+      'Cookie': cookieJar,
+      'Referer': THSRC_BASE + '/IMINT/',
+      'Sec-Fetch-Dest': 'document',
+      'Sec-Fetch-Mode': 'navigate',
+      'Sec-Fetch-Site': 'same-origin',
+    },
+    redirect: 'follow',
+  });
+  const confirmHtml = await confirmRes.text();
+  console.log('  [退票 5/6] done — confirmHtml len=', confirmHtml.length);
+
+  const cancelFormMatch = confirmHtml.match(/action="(\/IMINT\/[^"]*HistoryDetailsCancelForm[^"]*)"/);
+  if (!cancelFormMatch) throw new Error('找不到取消確認表單 action');
+  const cancelFormAction = THSRC_BASE + cancelFormMatch[1];
+
+  // [6/6] POST 確認取消（agree=on, SubmitButton=下一步）
+  console.log('  [退票 6/6] POST 確認取消...');
+  const cancelPayload = new URLSearchParams({
+    'HistoryDetailsCancelForm:hf:0': '',
+    agree: 'on',
+    SubmitButton: '下一步',
+  });
+
+  const { html: resultHtml } = await _postAndFollow(
+    cancelFormAction, cookieJar, cancelPayload.toString(), POST_HEADERS, null
+  );
+  console.log('  [退票 6/6] done — resultHtml len=', resultHtml.length, 'has 取消訂位成功=', resultHtml.includes('取消訂位成功'));
+
+  if (resultHtml.includes('取消訂位成功')) {
+    return { success: true, message: '取消訂位成功' };
+  }
+  const errMatch = resultHtml.match(/class="[^"]*error[^"]*"[^>]*>([^<]{3,100})</);
+  const message = errMatch ? errMatch[1].trim() : '退票失敗（未知原因）';
+  return { success: false, message };
+}
+
 function parseBookingResult(html) {
   // S4 HTML 格式：<td ...>訂位代號</td><td class="td-data"><p class="pnr-code"><span>XXXXXXXX</span></p>
   const ticketMatch = html.match(/訂位代號<\/td>[\s\S]{0,300}?<p[^>]*pnr[^>]*>[\s\S]{0,50}?<span>\s*(\d{6,10})\s*<\/span>/);
@@ -384,4 +543,4 @@ function parseBookingResult(html) {
   };
 }
 
-module.exports = { thsrcInit, thsrcGetCaptcha, thsrcQueryTrains, thsrcSubmitBooking, selectBestTrain, parseTrainOptions };
+module.exports = { thsrcInit, thsrcGetCaptcha, thsrcQueryTrains, thsrcSubmitBooking, thsrcCancelBooking, selectBestTrain, parseTrainOptions };
