@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>THSRC Admin — 登入</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #f0f2f5;
+      display: flex; align-items: center; justify-content: center;
+      min-height: 100vh;
+    }
+    .card {
+      background: #fff;
+      border-radius: 8px;
+      box-shadow: 0 2px 12px rgba(0,0,0,.12);
+      padding: 2rem;
+      width: 340px;
+    }
+    h1 { font-size: 1.25rem; margin-bottom: 1.5rem; color: #333; }
+    label { display: block; font-size: .875rem; color: #555; margin-bottom: .25rem; }
+    input[type=password] {
+      width: 100%; padding: .6rem .75rem; border: 1px solid #ccc;
+      border-radius: 4px; font-size: 1rem; margin-bottom: 1rem;
+    }
+    button {
+      width: 100%; padding: .65rem; background: #1976d2; color: #fff;
+      border: none; border-radius: 4px; font-size: 1rem; cursor: pointer;
+    }
+    button:hover { background: #1565c0; }
+    .error { color: #c62828; font-size: .875rem; margin-bottom: 1rem; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>THSRC Admin</h1>
+    <div id="errorMsg" class="error" style="display:none">密碼錯誤，請再試一次</div>
+    <form method="POST" action="/admin/login">
+      <label for="password">管理員密碼</label>
+      <input type="password" id="password" name="password" autofocus required>
+      <button type="submit">登入</button>
+    </form>
+  </div>
+  <script>
+    if (location.search.includes('err')) {
+      document.getElementById('errorMsg').style.display = 'block';
+    }
+  </script>
+</body>
+</html>

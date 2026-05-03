@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>THSRC Admin</title>
+  <link rel="stylesheet" href="/admin/assets/admin.css">
+</head>
+<body>
+  <header>
+    <h1>THSRC Admin</h1>
+    <form method="POST" action="/admin/logout" style="margin:0">
+      <button type="submit">登出</button>
+    </form>
+  </header>
+
+  <div class="tabs" id="tabs"></div>
+
+  <div class="toolbar">
+    <input type="search" id="searchInput" placeholder="搜尋...">
+    <button class="btn-primary" id="btnAdd">+ 新增</button>
+  </div>
+
+  <div class="table-wrap">
+    <div id="tableContainer" class="loading">載入中...</div>
+  </div>
+
+  <div class="pagination" id="pagination"></div>
+
+  <!-- Modal -->
+  <div class="modal-overlay" id="modalOverlay">
+    <div class="modal">
+      <h2 id="modalTitle">新增資料</h2>
+      <form id="modalForm"></form>
+      <div class="modal-actions">
+        <button class="btn-cancel" id="btnCancel" type="button">取消</button>
+        <button class="btn-save" id="btnSave" type="button">儲存</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/admin/assets/admin.js"></script>
+</body>
+</html>
