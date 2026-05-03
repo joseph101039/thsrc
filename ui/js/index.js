@@ -33,7 +33,7 @@ function bookingCard(b) {
     : '';
 
   const canDelete = (b.status === 'success' || b.status === 'failed')
-    && b.refundStatus !== 'refunding' && b.refundStatus !== 'refunded';
+    && b.refundStatus !== 'refunding';
   const deleteBtn = canDelete
     ? `<button class="btn btn-danger" style="padding:6px 14px;font-size:13px" onclick="event.stopPropagation();deleteBooking('${b.id}')">刪除</button>`
     : '';
