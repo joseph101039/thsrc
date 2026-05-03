@@ -8,6 +8,10 @@ function listBookings() {
 }
 
 function createBooking(data) {
+  const { retryWaitUnit } = data;
+  if (retryWaitUnit !== undefined && !['minute', 'second'].includes(retryWaitUnit)) {
+    throw Object.assign(new Error('retryWaitUnit 必須為 minute 或 second'), { status: 400 });
+  }
   return bookingRepo.create(data);
 }
 

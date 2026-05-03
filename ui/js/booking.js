@@ -104,7 +104,7 @@ document.getElementById('b-schedule-date').value = tomorrowStr;
 // 依期望時間自動更新允許最早（-2hr）和最晚（+2hr）
 function updateTimeRange() {
   const desired = document.getElementById('b-desired-time').value;
-  if (!isValidTime(desired)) return;
+  if (!desired) return;
   const [h, m] = desired.split(':').map(Number);
   const mStr = m.toString().padStart(2, '0');
   const earliestH = Math.max(0, h - 2).toString().padStart(2, '0');
