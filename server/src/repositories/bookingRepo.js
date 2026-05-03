@@ -56,6 +56,40 @@ function getPending() {
   `).get(new Date().toISOString()));
 }
 
+// 撈出所有已到期的 pending bookings（無 LIMIT，避免輪詢只處理第一筆）
+function getAllOverduePending() {
+  return getDb().prepare(`
+    SELECT * FROM bookings
+    WHERE status = 'pending'
+      AND (scheduled_at IS NULL OR scheduled_at <= ?)
+    ORDER BY created_at ASC
+  `).all(new Date().toISOString()).map(_toCamel);
+}
+
+// Atomic CAS：只有在 status 仍為 'pending' 時才更新為 'running'，回傳是否搶到鎖
+function tryClaimBooking(id) {
+  const now = new Date().toISOString();
+  const result = getDb().prepare(`
+    UPDATE bookings SET status = 'running', updated_at = ?
+    WHERE id = ? AND status = 'pending'
+  `).run(now, id);
+  return result.changes === 1;
+}
+
+// 撈出未來 windowMs 毫秒內即將到期的 pending bookings（用於精準 setTimeout 排程）
+function getPendingWithin(windowMs) {
+  const now = new Date();
+  const horizon = new Date(now.getTime() + windowMs).toISOString();
+  return getDb().prepare(`
+    SELECT * FROM bookings
+    WHERE status = 'pending'
+      AND scheduled_at IS NOT NULL
+      AND scheduled_at > ?
+      AND scheduled_at <= ?
+    ORDER BY scheduled_at ASC
+  `).all(now.toISOString(), horizon).map(_toCamel);
+}
+
 function getStuckRunning() {
   const cutoff = new Date(Date.now() - 10 * 60 * 1000).toISOString();
   return getDb().prepare(`
@@ -88,6 +122,6 @@ function getAttemptsByBookingId(bookingId) {
 
 module.exports = {
   getAll, getById, create, updateFields, deleteById,
-  getPending, getStuckRunning, getStuckRefunding,
+  getPending, getAllOverduePending, getPendingWithin, tryClaimBooking, getStuckRunning, getStuckRefunding,
   createAttempt, getAttemptsByBookingId,
 };

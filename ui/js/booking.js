@@ -62,7 +62,7 @@ async function submitBooking() {
     const schedDate = document.getElementById('b-schedule-date').value;
     const schedTime = document.getElementById('b-schedule-time').value;
     if (!schedDate || !schedTime) { alert('請填寫預約日期和時間'); return; }
-    scheduledAt = schedDate + 'T' + schedTime + ':00';
+    scheduledAt = new Date(schedDate + 'T' + schedTime + ':00').toISOString();
   }
 
   const btn = document.getElementById('submit-btn');

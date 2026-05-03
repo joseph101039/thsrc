@@ -6,6 +6,7 @@ services:
     restart: unless-stopped
 
   server:
+    build: ./server
     image: joseph50804/thsrc-server:latest
     ports:
       - "8081:8081"
@@ -15,6 +16,7 @@ services:
     restart: unless-stopped
 
   scheduler:
+    build: ./server
     image: joseph50804/thsrc-server:latest
     command: node --experimental-sqlite src/scheduler.js
     volumes:
