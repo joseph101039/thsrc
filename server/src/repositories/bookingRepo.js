@@ -11,16 +11,19 @@ function getById(id) {
   return _toCamel(getDb().prepare('SELECT * FROM bookings WHERE id=?').get(id));
 }
 
-function create({ passengerId, fromStation, toStation, date, desiredTime, earliestTime, latestTime, maxRetries, scheduledAt }) {
+function create({ passengerId, fromStation, toStation, date, desiredTime, earliestTime, latestTime, maxRetries, scheduledAt, retryWaitValue, retryWaitUnit }) {
   const id = uuidv4();
   const now = new Date().toISOString();
   getDb().prepare(`
     INSERT INTO bookings
       (id, passenger_id, from_station, to_station, date, desired_time, earliest_time, latest_time,
-       max_retries, scheduled_at, status, retry_count, train_no, ticket_no, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', 0, '', '', ?, ?)
+       max_retries, scheduled_at, status, retry_count, train_no, ticket_no,
+       retry_wait_value, retry_wait_unit, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', 0, '', '', ?, ?, ?, ?)
   `).run(id, passengerId, fromStation, toStation, date, desiredTime, earliestTime, latestTime,
-         maxRetries ?? 10, scheduledAt ?? null, now, now);
+         maxRetries ?? 10, scheduledAt ?? null,
+         retryWaitValue ?? 2, retryWaitUnit ?? 'minute',
+         now, now);
   return { success: true, id };
 }
 

@@ -51,6 +51,8 @@ const BOOKING_FIXTURE = {
   earliestTime: '08:00',
   latestTime: '10:00',
   maxRetries: 3,
+  retryWaitValue: 30,
+  retryWaitUnit: 'second',
 };
 
 test('GET /v1/bookings：無 token 應回傳 401', async () => {
@@ -215,6 +217,25 @@ test('GET /v1/bookings/:id/attempts：應回傳空陣列（新訂票無嘗試）
     assert.strictEqual(attemptsRes.status, 200);
     assert.ok(Array.isArray(attemptsRes.body.attempts));
     assert.strictEqual(attemptsRes.body.attempts.length, 0);
+  } finally {
+    await new Promise(r => server.close(r));
+  }
+});
+
+test('POST /v1/bookings：retryWaitValue/Unit 應被儲存並回傳', async () => {
+  const server = http.createServer(app);
+  await new Promise(r => server.listen(0, r));
+  try {
+    const token = makeToken();
+    const createRes = await request(server, 'POST', '/v1/bookings', BOOKING_FIXTURE, { Authorization: `Bearer ${token}` });
+    assert.strictEqual(createRes.status, 200);
+    const id = createRes.body.id;
+
+    const listRes = await request(server, 'GET', '/v1/bookings', null, { Authorization: `Bearer ${token}` });
+    const booking = listRes.body.bookings.find(b => b.id === id);
+    assert.ok(booking, '應能找到剛建立的訂單');
+    assert.strictEqual(booking.retryWaitValue, 30);
+    assert.strictEqual(booking.retryWaitUnit, 'second');
   } finally {
     await new Promise(r => server.close(r));
   }
