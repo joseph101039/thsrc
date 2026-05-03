@@ -1,6 +1,7 @@
 'use strict';
 
 const bookingService = require('../services/bookingService');
+const { runRefund } = require('../services/refundEngineService');
 
 /**
  * @swagger
@@ -131,4 +132,25 @@ function getAttempts(req, res) {
   }
 }
 
-module.exports = { listBookings, createBooking, deleteBooking, getAttempts };
+function refundBooking(req, res) {
+  try {
+    const booking = bookingService.getBookingById(req.params.id);
+    if (!booking) {
+      return res.status(404).json({ error: '找不到訂票紀錄' });
+    }
+    if (booking.status !== 'success') {
+      return res.status(400).json({ error: '只有成功訂票才能退票' });
+    }
+    if (booking.refundStatus === 'refunding' || booking.refundStatus === 'refunded') {
+      return res.status(400).json({ error: '該訂票已在退票中或已完成退票' });
+    }
+    // 非同步執行退票，不等待
+    runRefund(req.params.id).catch(err => console.error('refundBooking background error:', err.message));
+    res.status(202).json({ success: true });
+  } catch (err) {
+    console.error('refundBooking error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+}
+
+module.exports = { listBookings, createBooking, deleteBooking, getAttempts, refundBooking };
