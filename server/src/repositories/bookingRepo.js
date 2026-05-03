@@ -29,7 +29,7 @@ function updateFields(id, fields) {
   const allFields = { ...fields, updatedAt: now };
   const colMap = {
     status: 'status', retryCount: 'retry_count', trainNo: 'train_no',
-    ticketNo: 'ticket_no', scheduledAt: 'scheduled_at', updatedAt: 'updated_at',
+    ticketNo: 'ticket_no', departTime: 'depart_time', scheduledAt: 'scheduled_at', updatedAt: 'updated_at',
     refundStatus: 'refund_status', refundMessage: 'refund_message',
   };
   const setClauses = Object.keys(allFields)
