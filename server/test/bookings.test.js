@@ -271,3 +271,19 @@ test('POST /v1/bookings：retryWaitValue 超出範圍應回傳 400', async () =>
     await new Promise(r => server.close(r));
   }
 });
+
+test('POST /v1/bookings：只提供 retryWaitUnit 不提供 retryWaitValue 應回傳 400', async () => {
+  const server = http.createServer(app);
+  await new Promise(r => server.listen(0, r));
+  try {
+    const token = makeToken();
+    const { retryWaitValue: _, ...fixtureWithoutValue } = BOOKING_FIXTURE;
+    const res = await request(server, 'POST', '/v1/bookings', {
+      ...fixtureWithoutValue,
+      retryWaitUnit: 'second',
+    }, { Authorization: `Bearer ${token}` });
+    assert.strictEqual(res.status, 400);
+  } finally {
+    await new Promise(r => server.close(r));
+  }
+});

@@ -34,6 +34,7 @@ function updateFields(id, fields) {
     status: 'status', retryCount: 'retry_count', trainNo: 'train_no',
     ticketNo: 'ticket_no', departTime: 'depart_time', scheduledAt: 'scheduled_at', updatedAt: 'updated_at',
     refundStatus: 'refund_status', refundMessage: 'refund_message',
+    retryWaitValue: 'retry_wait_value', retryWaitUnit: 'retry_wait_unit',
   };
   const setClauses = Object.keys(allFields)
     .filter(k => colMap[k])
