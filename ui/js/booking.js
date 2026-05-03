@@ -22,7 +22,7 @@ function initStationSelects() {
   const toEl   = document.getElementById('b-to');
   STATIONS.forEach((s, i) => {
     fromEl.add(new Option(s, s, false, i === 1));  // 預設台北
-    toEl.add(new Option(s, s, false, i === 11));   // 預設左營
+    toEl.add(new Option(s, s, false, i === 6));    // 預設台中
   });
 }
 
@@ -90,6 +90,7 @@ tomorrow.setDate(tomorrow.getDate() + 1);
 const tomorrowStr = tomorrow.toISOString().slice(0, 10);
 document.getElementById('b-date').value = tomorrowStr;
 document.getElementById('b-schedule-date').value = tomorrowStr;
+document.getElementById('b-schedule-time').value = '00:00';
 
 initStationSelects();
 loadPassengers();
