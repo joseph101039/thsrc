@@ -85,7 +85,9 @@ body {
 .badge-running  { background: #cce5ff; color: #004085; }
 .badge-waiting  { background: #fff3cd; color: #856404; }
 .badge-success  { background: #d4edda; color: #155724; }
-.badge-failed   { background: #f8d7da; color: #721c24; }
+.badge-failed    { background: #f8d7da; color: #721c24; }
+.badge-refunding { background: #ff9800; color: #fff; }
+.badge-refunded  { background: #9e9e9e; color: #fff; }
 
 /* ── 表單 ── */
 .form-group { margin-bottom: 16px; }
