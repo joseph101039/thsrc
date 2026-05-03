@@ -21,11 +21,11 @@ Follow [CLAUDE.md](~/.claude/CLAUDE.md) workflow for all development. This proje
 **Stages 1–4**: same as global (Brainstorm → Plan → Implement → Test)
 - 本專案大多是 server 內部小改動，除非涉及 auth/payment/external API，**跳過 Brainstorm + Plan 直接 Stage 3**
 
-**Stage 5 — Review**: `/requesting-copilot-claude-review`
+**Stage 5 — Review**: Run `/requesting-copilot-claude-review`.
 
 **Stage 6 — Commit**: `/commit-commands:commit` with descriptive message
 
-**Stage 7 — Local Docker Validation** *(project-specific gate before any push)*:
+**Stage 7 — Local Docker Validation**:
 ```bash
 docker-compose up --build -d   # ui:8082, captcha:8080, server:8081, scheduler
 ```
