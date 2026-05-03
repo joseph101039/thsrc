@@ -26,7 +26,7 @@ function renderDetail(booking, attempts) {
           <div class="attempt-body">
             <div class="attempt-seq">第 ${i + 1} 次嘗試</div>
             <div class="attempt-time">${formatTW(a.attemptedAt)}</div>
-            ${!a.success && a.reason ? `<div class="attempt-reason">${a.reason}</div>` : ''}
+            ${a.reason ? `<div class="attempt-reason" style="color:${a.success ? 'var(--success)' : 'var(--danger)'}">${a.reason}</div>` : (a.success ? '<div class="attempt-reason" style="color:var(--success)">訂票成功</div>' : '')}
           </div>
         </li>`).join('')}</ul>`;
 
