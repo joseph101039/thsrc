@@ -130,8 +130,7 @@ async function loadBookings() {
         </div>`;
       return;
     }
-    const sorted = [...bookings].reverse();
-    el.innerHTML = sorted.map(bookingCard).join('');
+    el.innerHTML = bookings.map(bookingCard).join('');
   } catch (err) {
     el.innerHTML = `<div class="alert alert-warning">載入失敗：${err.message}</div>`;
   }
