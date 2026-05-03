@@ -31,6 +31,9 @@ function bookingCard(b) {
   const scheduledInfo = b.scheduledAt
     ? `<div class="card-sub">預約時間：${formatTW(b.scheduledAt)}</div>`
     : '';
+  const updatedInfo = b.updatedAt
+    ? `<div class="card-sub">最後更新：${formatTW(b.updatedAt)}</div>`
+    : '';
 
   const canDelete = (b.status === 'success' || b.status === 'failed')
     && b.refundStatus !== 'refunding';
@@ -63,6 +66,7 @@ function bookingCard(b) {
       <div class="card-sub">嘗試次數：${b.retryCount || 0} / ${b.maxRetries}</div>
       ${b.ticketNo ? `<div class="card-sub" style="color:var(--success);font-weight:600">訂位代號：${b.ticketNo}${copyIcon}</div>` : ''}
       ${refundMsg}
+      ${updatedInfo}
       ${(refundBtn || deleteBtn) ? `<div class="card-actions">${refundBtn}${deleteBtn}</div>` : ''}
     </div>
   `;

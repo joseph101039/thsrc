@@ -63,6 +63,13 @@ function getStuckRunning() {
   `).all(cutoff).map(_toCamel);
 }
 
+function getStuckRefunding() {
+  const cutoff = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+  return getDb().prepare(`
+    SELECT * FROM bookings WHERE refund_status = 'refunding' AND updated_at < ?
+  `).all(cutoff).map(_toCamel);
+}
+
 function createAttempt({ bookingId, success, reason }) {
   const id = uuidv4();
   const now = new Date().toISOString();
@@ -81,6 +88,6 @@ function getAttemptsByBookingId(bookingId) {
 
 module.exports = {
   getAll, getById, create, updateFields, deleteById,
-  getPending, getStuckRunning,
+  getPending, getStuckRunning, getStuckRefunding,
   createAttempt, getAttemptsByBookingId,
 };
