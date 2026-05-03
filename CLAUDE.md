@@ -23,15 +23,17 @@ Follow [CLAUDE.md](~/.claude/CLAUDE.md) workflow for all development. This proje
 
 **Stage 5 — Review**: `/requesting-copilot-claude-review`；Option 2 (Push + PR) blocked until this completes
 
-**Stage 6 — Local Docker Validation** *(project-specific gate before any push)*:
+**Stage 6 — Commit**: `/commit-commands:commit` with descriptive message
+
+**Stage 7 — Local Docker Validation** *(project-specific gate before any push)*:
 ```bash
 docker-compose up --build -d   # captcha:8080, server:8081, scheduler
 ```
 `ui/serve.js` injects `API_URL` at request time. Requires `.env.local` with `GMAIL_USER` + `GMAIL_APP_PASSWORD`.
 
-**Stage 7 — PR**: ask "Open a PR now?" → `/pr`
+**Stage 8 — PR**: ask "Open a PR now?" → `/pr`
 
-**Stage 8 — Production Deploy** *(after PR approved and merged to main)*:
+**Stage 9 — Production Deploy** *(after PR approved and merged to main)*:
 
 ```bash
 # 推送主分支 + 前端
