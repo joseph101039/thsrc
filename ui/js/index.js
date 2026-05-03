@@ -41,7 +41,7 @@ function bookingCard(b) {
     ? `<button class="btn btn-danger" style="padding:6px 14px;font-size:13px" onclick="event.stopPropagation();deleteBooking('${b.id}')">刪除</button>`
     : '';
 
-  const canRefund = b.status === 'success' && !b.refundStatus;
+  const canRefund = b.status === 'success' && (!b.refundStatus || b.refundStatus === 'refund_failed');
   const refundBtn = canRefund
     ? `<button class="btn btn-warning" style="padding:6px 14px;font-size:13px;margin-right:6px" onclick="event.stopPropagation();refundBooking('${b.id}')">退票</button>`
     : '';
