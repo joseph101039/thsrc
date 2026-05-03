@@ -10,18 +10,15 @@ THSRC automated ticket-booking agent. Backend is a Node.js/Express server; front
 - **Server API (direct):** `http://35.212.154.47:8081`
 - **UI (GitHub Pages):** `https://joseph101039.github.io/thsrc/ui/`
 
-## Development Notes
+## Development Flow
 
 Follow [CLAUDE.md](~/.claude/CLAUDE.md) workflow for all development. Key modifications to the standard workflow:
+
+Code Review → Deploy local docker (build at development branch) → PR → After PR approval, push to main → Deploy to GCE (see Deployment section below)
 
 **Branch & PR flow** — Always open a branch before modifying code:
 - Feature: `git checkout -b feat-<name>`
 - Bug fix: `git checkout -b fix-<name>`
-
-Replace Step 8 (PR) in the global development workflow with two-phase deployment — **deploy only after the PR is merged and all reviews pass** (Steps 5 Code Review + Step 6 Security Review must complete first):
-1. **本地驗證**：`docker-compose up --build` 確認服務正常
-2. **合併 PR 並推送**：`git push origin main` + `git push origin main:gh-pages`（前端）
-3. **部署後端**：refer to Deployment section below
 
 ---
 
