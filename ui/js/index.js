@@ -17,6 +17,7 @@ const STATUS_LABEL = {
   running:       { text: '搶票中',  cls: 'badge-running'   },
   success:       { text: '成功',    cls: 'badge-success'   },
   failed:        { text: '失敗',    cls: 'badge-failed'    },
+  cancelled:     { text: '已取消',  cls: 'badge-cancelled' },
   refunding:     { text: '退票中',  cls: 'badge-refunding' },
   refunded:      { text: '已退票',  cls: 'badge-refunded'  },
   refund_failed: { text: '退票失敗', cls: 'badge-failed'   },
@@ -35,9 +36,8 @@ function bookingCard(b) {
     ? `<div class="card-sub">最後更新：${formatTW(b.updatedAt)}</div>`
     : '';
 
-  const canDelete = (b.status === 'success' || b.status === 'failed')
-    && b.refundStatus !== 'refunding'
-    && b.refundStatus !== 'refund_failed';
+  const canDelete = (b.status === 'success' || b.status === 'failed' || b.status === 'cancelled' || b.refundStatus === 'refund_failed')
+    && b.refundStatus !== 'refunding';
   const deleteBtn = canDelete
     ? `<button class="btn btn-danger" style="padding:6px 14px;font-size:13px" onclick="event.stopPropagation();deleteBooking('${b.id}')">刪除</button>`
     : '';
@@ -45,6 +45,11 @@ function bookingCard(b) {
   const canRefund = b.status === 'success' && (!b.refundStatus || b.refundStatus === 'refund_failed');
   const refundBtn = canRefund
     ? `<button class="btn btn-warning" style="padding:6px 14px;font-size:13px;margin-right:6px" onclick="event.stopPropagation();refundBooking('${b.id}')">退票</button>`
+    : '';
+
+  const canCancel = b.status === 'pending';
+  const cancelBtn = canCancel
+    ? `<button class="btn btn-secondary" style="padding:6px 14px;font-size:13px;margin-right:6px" onclick="event.stopPropagation();cancelBooking('${b.id}')">取消</button>`
     : '';
 
   const copyIcon = b.ticketNo
@@ -68,7 +73,7 @@ function bookingCard(b) {
       ${b.ticketNo ? `<div class="card-sub" style="color:var(--success);font-weight:600">訂位代號：${b.ticketNo}${copyIcon}</div>` : ''}
       ${refundMsg}
       ${updatedInfo}
-      ${(refundBtn || deleteBtn) ? `<div class="card-actions">${refundBtn}${deleteBtn}</div>` : ''}
+      ${(cancelBtn || refundBtn || deleteBtn) ? `<div class="card-actions">${cancelBtn}${refundBtn}${deleteBtn}</div>` : ''}
     </div>
   `;
 }
@@ -80,6 +85,16 @@ async function deleteBooking(id) {
     document.getElementById('booking-' + id).remove();
   } catch (err) {
     alert('刪除失敗：' + err.message);
+  }
+}
+
+async function cancelBooking(id) {
+  if (!confirm('確定要取消這筆訂票？')) return;
+  try {
+    await api.cancelBooking(id);
+    await loadBookings();
+  } catch (err) {
+    alert('取消失敗：' + err.message);
   }
 }
 

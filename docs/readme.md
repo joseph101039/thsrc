@@ -228,3 +228,86 @@
 | Captcha Solver API | ✅ 成功，回傳 4 字元答案（confidence ≥ 0.92） |
 | thsrcQueryTrains() — S1 POST | ✅ 成功，正確解析班次列表（QueryDeparture/QueryArrival/QueryCode） |
 | thsrcSubmitBooking() — S2→S3→S4 | ✅ 成功，取得訂位代號（已驗證：05991354、06000727、06000820） |
+
+---
+
+## 訂票狀態機（Booking State Machine）
+
+```
+                        ┌─────────────────────────────────────────┐
+                        │              建立訂票                    │
+                        │         bookingRepo.create()            │
+                        └──────────────────┬──────────────────────┘
+                                           │
+                                           ▼
+                                      ┌─────────┐
+                                      │ pending │  等待排程器觸發
+                                      └────┬────┘
+                                           │
+                   ┌───────────────────────┼──────────────────────┐
+                   │                       │                      │
+                   │ 使用者取消             │ 排程器觸發            │
+                   │ POST /cancel          │ tryClaimBooking()     │
+                   ▼                       ▼                      │
+             ┌───────────┐           ┌─────────┐                  │
+             │ cancelled │           │ running │  搶票執行中       │
+             └───────────┘           └────┬────┘                  │
+             createAttempt                │                       │
+             (使用者取消)          ┌───────┴────────┐              │
+                                   │                │              │
+                              訂票成功          訂票失敗            │
+                                   │           handleRetry()       │
+                                   ▼                │              │
+                              ┌─────────┐           │              │
+                              │ success │           │              │
+                              └────┬────┘    retry < maxRetries    │
+                                   │                │              │
+                             ┌─────┴─────┐         │ 重設 pending  │
+                             │  退票流程  │         └──────────────►┘
+                             └─────┬─────┘
+                             POST /refund    retry >= maxRetries
+                                   │                │
+                                   ▼                ▼
+                             ┌──────────┐     ┌────────┐
+                             │ refunding│     │ failed │  已達最大重試次數
+                             └─────┬────┘     └────────┘
+                                   │
+                    ┌──────────────┼─────────────────┐
+                    │              │                  │
+                 退票成功       退票失敗         卡住逾時(>10min)
+                    │          POST /refund           │
+                    ▼          可重試                 │
+              ┌──────────┐         │        scheduler 重設 refunding
+              │ refunded │         ▼
+              └──────────┘  ┌──────────────┐
+                            │ refund_failed│  可再次點退票重試
+                            └──────────────┘
+```
+
+### 允許的狀態轉換摘要
+
+| 從 | 到 | 觸發者 |
+|----|----|--------|
+| pending | running | scheduler `tryClaimBooking()` |
+| pending | cancelled | 使用者 POST `/cancel` |
+| running | success | `_doBooking()` 成功 |
+| running | pending | `handleRetry()` 重試（scheduledAt = now + 2min）；或 scheduler 重設卡住 running（>10min） |
+| running | failed | `handleRetry()` 達最大重試次數 |
+| success | refunding | 使用者 POST `/refund` |
+| refunding | refunded | `runRefund()` 成功 |
+| refunding | refund_failed | `runRefund()` 失敗 |
+| refunding | refunding | scheduler 重設卡住的 refunding（>10min） |
+| refund_failed | refunding | 使用者再次 POST `/refund` |
+
+### 可執行操作對應狀態
+
+| 狀態 | 取消 | 退票 | 刪除 |
+|------|------|------|------|
+| pending | ✅ | — | — |
+| running | — | — | — |
+| success | — | ✅ | ✅ |
+| failed | — | — | ✅ |
+| cancelled | — | — | ✅ |
+| refunding | — | — | — |
+| refunded | — | — | ✅ |
+| refund_failed | — | ✅ (重試) | ✅ |
