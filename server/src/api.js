@@ -14,6 +14,9 @@ if (!JWT_SECRET || !GOOGLE_CLIENT_ID) {
   console.error('缺少必要環境變數：JWT_SECRET 與 GOOGLE_CLIENT_ID 必須設定');
   process.exit(1);
 }
+if (!process.env.SESSION_SECRET || !process.env.ADMIN_PASSWORD) {
+  console.warn('警告：SESSION_SECRET 或 ADMIN_PASSWORD 未設定，Admin panel 將無法登入');
+}
 
 const app = express();
 const ALLOWED_ORIGINS = ['https://joseph101039.github.io', 'http://localhost:8082'];
@@ -23,6 +26,9 @@ app.use(express.json());
 app.get('/', (req, res) => res.json({ status: 'ok' }));
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 app.use('/v1', v1Router);
+
+const adminRouter = require('./admin/router');
+app.use('/admin', adminRouter);
 
 if (require.main === module) {
   app.listen(CONFIG.PORT, () => {
