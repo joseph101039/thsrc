@@ -8,6 +8,22 @@ function listBookings() {
 }
 
 function createBooking(data) {
+  const { retryWaitUnit, retryWaitValue } = data;
+  const hasUnit  = retryWaitUnit  !== undefined;
+  const hasValue = retryWaitValue !== undefined;
+  if (hasUnit !== hasValue) {
+    throw Object.assign(new Error('retryWaitUnit 和 retryWaitValue 必須同時提供'), { status: 400 });
+  }
+  if (hasUnit && !['minute', 'second'].includes(retryWaitUnit)) {
+    throw Object.assign(new Error('retryWaitUnit 必須為 minute 或 second'), { status: 400 });
+  }
+  if (hasValue) {
+    const effectiveUnit = retryWaitUnit ?? 'minute';
+    const max = effectiveUnit === 'second' ? 300 : 60;
+    if (!Number.isInteger(retryWaitValue) || retryWaitValue < 1 || retryWaitValue > max) {
+      throw Object.assign(new Error('retryWaitValue 超出允許範圍'), { status: 400 });
+    }
+  }
   return bookingRepo.create(data);
 }
 

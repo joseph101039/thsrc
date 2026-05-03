@@ -40,24 +40,35 @@
       </div>
       <div class="form-group">
         <label>期望時間</label>
-        <input type="text" id="b-desired-time" value="09:00" placeholder="HH:MM" maxlength="5" inputmode="numeric" data-timepicker autocomplete="off">
+        <input type="time" id="b-desired-time" value="09:00">
       </div>
     </div>
 
     <div class="form-row">
       <div class="form-group">
         <label>允許最早</label>
-        <input type="text" id="b-earliest" value="08:00" placeholder="HH:MM" maxlength="5" inputmode="numeric" data-timepicker autocomplete="off">
+        <input type="time" id="b-earliest">
       </div>
       <div class="form-group">
         <label>允許最晚</label>
-        <input type="text" id="b-latest" value="11:00" placeholder="HH:MM" maxlength="5" inputmode="numeric" data-timepicker autocomplete="off">
+        <input type="time" id="b-latest">
       </div>
     </div>
 
     <div class="form-group">
       <label>最大重試次數</label>
       <input type="number" id="b-max-retries" value="10" min="1" max="50">
+    </div>
+
+    <div class="form-group">
+      <label>重試間隔</label>
+      <div style="display:flex;gap:8px;align-items:center">
+        <input type="number" id="b-retry-wait-value" value="2" min="1" max="300" style="width:80px">
+        <select id="b-retry-wait-unit">
+          <option value="minute">分鐘</option>
+          <option value="second">秒</option>
+        </select>
+      </div>
     </div>
 
     <div class="form-group">
@@ -75,7 +86,7 @@
       </div>
       <div class="form-group">
         <label>預約時間</label>
-        <input type="text" id="b-schedule-time" placeholder="HH:MM" maxlength="5" inputmode="numeric" data-timepicker autocomplete="off">
+        <input type="time" id="b-schedule-time">
       </div>
     </div>
 
@@ -99,7 +110,6 @@
 
   <script src="js/auth.js"></script>
   <script src="js/api.js"></script>
-  <script src="js/time-picker.js"></script>
   <script src="js/booking.js"></script>
 </body>
 </html>

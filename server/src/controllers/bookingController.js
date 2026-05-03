@@ -71,7 +71,8 @@ function createBooking(req, res) {
     res.json(result);
   } catch (err) {
     console.error('createBooking error:', err.message);
-    res.status(500).json({ error: err.message });
+    const status = [400, 401, 403, 404, 409].includes(err.status) ? err.status : 500;
+    res.status(status).json({ error: err.message });
   }
 }
 

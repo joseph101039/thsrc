@@ -85,6 +85,12 @@ function _migrate(db) {
   if (!bookingCols.includes('depart_time')) {
     db.exec("ALTER TABLE bookings ADD COLUMN depart_time TEXT");
   }
+  if (!bookingCols.includes('retry_wait_value')) {
+    db.exec("ALTER TABLE bookings ADD COLUMN retry_wait_value INTEGER NOT NULL DEFAULT 2");
+  }
+  if (!bookingCols.includes('retry_wait_unit')) {
+    db.exec("ALTER TABLE bookings ADD COLUMN retry_wait_unit TEXT NOT NULL DEFAULT 'minute'");
+  }
 }
 
 function _toCamel(row) {
