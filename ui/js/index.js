@@ -1,3 +1,7 @@
+function escapeHtml(str) {
+  return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
 function formatTW(isoStr) {
   if (!isoStr) return '';
   return new Date(isoStr).toLocaleString('zh-TW', {
@@ -28,7 +32,8 @@ function bookingCard(b) {
     ? `<div class="card-sub">預約時間：${formatTW(b.scheduledAt)}</div>`
     : '';
 
-  const canDelete = b.status === 'success' || b.status === 'failed';
+  const canDelete = (b.status === 'success' || b.status === 'failed')
+    && b.refundStatus !== 'refunding' && b.refundStatus !== 'refunded';
   const deleteBtn = canDelete
     ? `<button class="btn btn-danger" style="padding:6px 14px;font-size:13px" onclick="event.stopPropagation();deleteBooking('${b.id}')">刪除</button>`
     : '';
@@ -43,7 +48,7 @@ function bookingCard(b) {
     : '';
 
   const refundMsg = b.refundMessage
-    ? `<div class="card-sub" style="color:var(--danger)">${b.refundMessage}</div>`
+    ? `<div class="card-sub" style="color:var(--danger)">${escapeHtml(b.refundMessage)}</div>`
     : '';
 
   return `

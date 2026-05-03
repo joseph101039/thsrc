@@ -1,6 +1,7 @@
 'use strict';
 
 const bookingService = require('../services/bookingService');
+const bookingRepo = require('../repositories/bookingRepo');
 const { runRefund } = require('../services/refundEngineService');
 
 /**
@@ -144,6 +145,8 @@ function refundBooking(req, res) {
     if (booking.refundStatus === 'refunding' || booking.refundStatus === 'refunded') {
       return res.status(400).json({ error: '該訂票已在退票中或已完成退票' });
     }
+    // 同步設為 refunding，防止重複提交（race condition）
+    bookingRepo.updateFields(req.params.id, { refundStatus: 'refunding' });
     // 非同步執行退票，不等待
     runRefund(req.params.id).catch(err => console.error('refundBooking background error:', err.message));
     res.status(202).json({ success: true });
