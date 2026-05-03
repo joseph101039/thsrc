@@ -98,7 +98,6 @@ tomorrow.setDate(tomorrow.getDate() + 1);
 const tomorrowStr = tomorrow.toISOString().slice(0, 10);
 document.getElementById('b-date').value = tomorrowStr;
 document.getElementById('b-schedule-date').value = tomorrowStr;
-document.getElementById('b-schedule-time').value = '00:00';
 
 initStationSelects();
 loadPassengers();

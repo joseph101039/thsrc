@@ -81,10 +81,12 @@
       minVal.textContent = mSnap;
     }
 
-    // 定位到 input 正下方
+    // 定位到 input 正下方，並防止右側超出 viewport
     const rect = input.getBoundingClientRect();
+    const panelW = 200;
+    const left = Math.min(rect.left, window.innerWidth - panelW - 8);
     panel.style.top  = (rect.bottom + window.scrollY + 4) + 'px';
-    panel.style.left = rect.left + 'px';
+    panel.style.left = Math.max(8, left) + 'px';
     panel.classList.add('open');
   }
 
