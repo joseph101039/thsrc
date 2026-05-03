@@ -44,9 +44,16 @@ router.get('/login', (req, res) => {
 
 router.post('/login', loginLimiter, express.urlencoded({ extended: false }), (req, res) => {
   const { password } = req.body;
-  if (password === ADMIN_PASSWORD) {
-    req.session.adminAuthed = true;
-    return res.redirect('/admin');
+  if (ADMIN_PASSWORD && password === ADMIN_PASSWORD) {
+    req.session.regenerate((err) => {
+      if (err) {
+        console.error('Session regenerate 失敗', err);
+        return res.status(500).send('Session error');
+      }
+      req.session.adminAuthed = true;
+      return res.redirect('/admin');
+    });
+    return;
   }
   console.error('管理員登入失敗：密碼錯誤');
   return res.redirect('/admin/login?err=1');

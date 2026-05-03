@@ -69,47 +69,58 @@
       rows.forEach(row => {
         html += '<tr>';
         cols.forEach(c => { html += `<td title="${escHtml(String(row[c] ?? ''))}">${escHtml(String(row[c] ?? ''))}</td>`; });
-        const id = escHtml(String(row[pk]));
+        const rawId = String(row[pk]);
         html += `<td class="action-cell">
-          <button class="btn-edit" onclick="editRow('${id}')">編輯</button>
-          <button class="btn-delete" id="del-${id}" onclick="confirmDelete('${id}')">刪除</button>
+          <button class="btn-edit" data-row-id="${escHtml(rawId)}">編輯</button>
+          <button class="btn-delete" data-row-id="${escHtml(rawId)}">刪除</button>
         </td></tr>`;
       });
       html += '</tbody></table>';
       container.innerHTML = html;
       renderPagination(total, 50);
+      attachTableEvents(container);
     } catch (e) {
       container.innerHTML = `<div class="empty">載入失敗：${escHtml(e.message)}</div>`;
     }
   }
 
+  function attachTableEvents(container) {
+    container.querySelectorAll('.btn-edit').forEach(btn => {
+      btn.addEventListener('click', () => editRow(btn.dataset.rowId));
+    });
+    container.querySelectorAll('.btn-delete').forEach(btn => {
+      btn.addEventListener('click', () => confirmDelete(btn));
+    });
+  }
+
   function renderPagination(total, limit) {
     const pages = Math.ceil(total / limit) || 1;
     const el = document.getElementById('pagination');
-    el.innerHTML = `
-      <button onclick="changePage(${currentPage - 1})" ${currentPage <= 1 ? 'disabled' : ''}>‹</button>
-      <span>第 ${currentPage} / ${pages} 頁</span>
-      <button onclick="changePage(${currentPage + 1})" ${currentPage >= pages ? 'disabled' : ''}>›</button>
-      <span class="total">共 ${total} 筆</span>
-    `;
+    const prevBtn = document.createElement('button');
+    prevBtn.textContent = '‹';
+    prevBtn.disabled = currentPage <= 1;
+    prevBtn.addEventListener('click', () => { currentPage--; renderTable(); });
+    const nextBtn = document.createElement('button');
+    nextBtn.textContent = '›';
+    nextBtn.disabled = currentPage >= pages;
+    nextBtn.addEventListener('click', () => { currentPage++; renderTable(); });
+    el.innerHTML = '';
+    el.appendChild(prevBtn);
+    el.appendChild(Object.assign(document.createElement('span'), { textContent: `第 ${currentPage} / ${pages} 頁` }));
+    el.appendChild(nextBtn);
+    el.appendChild(Object.assign(document.createElement('span'), { className: 'total', textContent: `共 ${total} 筆` }));
   }
 
-  window.changePage = function(page) {
-    currentPage = page;
-    renderTable();
-  };
-
-  window.editRow = async function(id) {
+  async function editRow(id) {
     const { row } = await apiFetch(`/${currentTable}/${id}`);
     openModal('編輯資料', row, async (data) => {
       await apiFetch(`/${currentTable}/${id}`, { method: 'PUT', body: JSON.stringify(data) });
       renderTable();
     });
-  };
+  }
 
-  window.confirmDelete = function(id) {
-    const btn = document.getElementById(`del-${id}`);
-    if (!btn) return;
+  function confirmDelete(btn) {
+    const id = btn.dataset.rowId;
     if (btn.dataset.confirming) {
       apiFetch(`/${currentTable}/${id}`, { method: 'DELETE' })
         .then(() => renderTable())
@@ -119,10 +130,10 @@
       btn.textContent = '確定刪除';
       btn.classList.add('btn-delete-confirm');
       setTimeout(() => {
-        if (btn) { btn.textContent = '刪除'; btn.classList.remove('btn-delete-confirm'); delete btn.dataset.confirming; }
+        if (btn.isConnected) { btn.textContent = '刪除'; btn.classList.remove('btn-delete-confirm'); delete btn.dataset.confirming; }
       }, 3000);
     }
-  };
+  }
 
   function openModal(title, defaults, onSave) {
     document.getElementById('modalTitle').textContent = title;

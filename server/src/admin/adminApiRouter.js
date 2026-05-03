@@ -31,8 +31,8 @@ router.get('/:table/schema', (req, res) => {
 
 router.get('/:table', (req, res) => {
   try {
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 50;
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const limit = Math.min(Math.max(1, parseInt(req.query.limit) || 50), 200);
     const search = req.query.search || '';
     const result = ctrl.getRows(req.params.table, { page, limit, search });
     res.json(result);
