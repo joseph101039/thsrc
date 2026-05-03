@@ -21,7 +21,7 @@ Follow [CLAUDE.md](~/.claude/CLAUDE.md) workflow for all development. Key modifi
 Replace Step 8 (PR) in the global development workflow with two-phase deployment — **deploy only after the PR is merged and all reviews pass** (Steps 5 Code Review + Step 6 Security Review must complete first):
 1. **本地驗證**：`docker-compose up --build` 確認服務正常
 2. **合併 PR 並推送**：`git push origin main` + `git push origin main:gh-pages`（前端）
-3. **部署後端**：`DOCKERHUB_USER=joseph50804 bash server/deploy-server.sh`
+3. **部署後端**：refer to Deployment section below
 
 ---
 
