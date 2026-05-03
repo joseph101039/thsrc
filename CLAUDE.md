@@ -8,7 +8,7 @@ THSRC automated ticket-booking agent. Backend is a Node.js/Express server; front
 
 - **Server API (HTTPS):** `https://api.joseph101039.uk` (Cloudflare Named Tunnel — stable, survives VM reboots)
 - **Server API (direct):** `http://35.212.154.47:8081`
-- **UI (GitHub Pages):** `https://joseph101039.github.io/thsrc/ui/`
+- **UI (GitHub Pages):** `https://joseph101039.github.io/thsrc-booking/`
 
 ## Development Flow
 
@@ -36,9 +36,11 @@ docker-compose up --build -d   # captcha:8080, server:8081, scheduler
 **Stage 9 — Production Deploy** *(after PR approved and merged to main)*:
 
 ```bash
-# 推送主分支 + 前端
+# 推送主分支
 git push origin main
-git push origin main:gh-pages
+
+# 推送前端到 thsrc-booking（GitHub Pages 自動重新部署）
+git subtree push --prefix=ui ui main
 
 # 後端 Docker image（VM cron 每 5 分鐘自動 pull）
 DOCKERHUB_USER=joseph50804 bash server/deploy-server.sh
@@ -52,7 +54,7 @@ gcloud compute ssh instance-20260427-141455 --zone=us-west1-b --project=sincere-
 
 ```
 docs/readme.md         — system architecture diagram and data flow; update when modifying core workflows
-ui/                    — GitHub Pages frontend (vanilla HTML/CSS/JS); deployed via git push origin main:gh-pages
+ui/                    — GitHub Pages frontend (vanilla HTML/CSS/JS); deployed via git subtree push --prefix=ui ui main to joseph101039/thsrc-booking
 server/                — Node.js/Express backend + job scheduler; deployed to GCE via docker image
   src/
     api.js             — Express entry point (port 8081); mounts middleware, routes, and Swagger UI
