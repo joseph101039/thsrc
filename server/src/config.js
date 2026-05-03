@@ -30,6 +30,12 @@ const CONFIG = {
     SUCCESS: 'success',
     FAILED: 'failed',
   },
+
+  REFUND_STATUS: {
+    REFUNDING: 'refunding',
+    REFUNDED: 'refunded',
+    REFUND_FAILED: 'refund_failed',
+  },
 };
 
 module.exports = CONFIG;

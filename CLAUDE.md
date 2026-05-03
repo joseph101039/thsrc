@@ -21,7 +21,7 @@ Follow [CLAUDE.md](~/.claude/CLAUDE.md) workflow for all development. Key modifi
 Replace Step 8 (PR) in the global development workflow with two-phase deployment — **deploy only after the PR is merged and all reviews pass** (Steps 5 Code Review + Step 6 Security Review must complete first):
 1. **本地驗證**：`docker-compose up --build` 確認服務正常
 2. **合併 PR 並推送**：`git push origin main` + `git push origin main:gh-pages`（前端）
-3. **部署後端**：`DOCKERHUB_USER=joseph50804 bash server/deploy-server.sh`
+3. **部署後端**：refer to Deployment section below
 
 ---
 
@@ -33,8 +33,8 @@ Replace Step 8 (PR) in the global development workflow with two-phase deployment
 
 ```bash
 # 啟動所有本地服務（server + scheduler + captcha）
-docker-compose up --build
-# server → http://localhost:8081, captcha → http://localhost:8080
+docker-compose up --build -d
+# ui → http://localhost:8082, server → http://localhost:8081, captcha → http://localhost:8080
 
 # 啟動 UI dev server（透過環境變數注入 API_URL，無需改程式碼）
 cd ui && npm run dev
@@ -86,22 +86,45 @@ gcloud compute ssh instance-20260427-141455 --zone=us-west1-b --project=sincere-
 ## Architecture
 
 ```
-docs/readme.md — system architecture and data flow diagram, 修改流程時請更新此圖
-ui/          — vanilla HTML/CSS/JS frontend (GitHub Pages)
-server/      — Node.js/Express API + scheduler
+docs/readme.md         — system architecture diagram and data flow; update when modifying core workflows
+ui/                    — GitHub Pages frontend (vanilla HTML/CSS/JS); deployed via git push origin main:gh-pages
+server/                — Node.js/Express backend + job scheduler; deployed to GCE via docker image
   src/
-    api.js            — Express HTTP server (port 8081), action-based POST dispatch
-    scheduler.js      — node-schedule worker, polls SQLite every minute
-    booking_engine.js — runBooking(), handleRetry()
-    thsrc.js          — THSRC website scraping (session, trains, captcha, submit)
-    db.js             — SQLite via node:sqlite (node --experimental-sqlite required)
-    mailer.js         — Nodemailer + Gmail SMTP
-    config.js         — constants (stations, status codes, captcha URL)
-captcha/     — CRNN+CTC captcha solver (see captcha/CLAUDE.md)
+    api.js             — Express entry point (port 8081); mounts middleware, routes, and Swagger UI
+    scheduler.js       — node-schedule worker; polls SQLite every 60s for pending bookings (status='pending' AND scheduled_at <= now)
+    thsrc.js           — THSRC website automation; handles session init, train search, captcha fetch, booking submission
+    db.js              — SQLite wrapper (node:sqlite); shared volume between server and scheduler containers
+    config.js          — centralized constants: station codes, booking status enums, captcha solver API URL
+    swagger.js         — Swagger/OpenAPI spec generation (swagger-jsdoc)
+    routes/
+      v1.js            — /api/v1 route definitions; applies auth + adminOnly middleware per endpoint
+    controllers/
+      authController.js      — login, register, JWT token issuance
+      bookingController.js   — create/list/cancel bookings
+      passengerController.js — CRUD for saved passenger profiles
+      userController.js      — admin user management
+    services/
+      authService.js         — credential verification, JWT signing
+      bookingService.js      — booking business logic (validation, status transitions)
+      bookingEngineService.js — runBooking(), handleRetry(); POSTs to captcha solver, submits to THSRC
+      passengerService.js    — passenger business logic
+      userService.js         — user business logic
+    repositories/
+      bookingRepo.js    — SQLite queries for bookings table
+      passengerRepo.js  — SQLite queries for passengers table
+      userRepo.js       — SQLite queries for users table
+    models/
+      schemas.js        — shared validation constants (e.g. VALID_ROLES)
+    middlewares/
+      auth.js           — JWT verification middleware
+      adminOnly.js      — role-guard middleware (rejects non-admin)
+  Dockerfile            — builds linux/amd64 image; includes --experimental-sqlite flag in CMD
+captcha/               — CRNN+CTC solver (git subtree); deployed separately; see captcha/CLAUDE.md for details
+docker-compose.yml     — orchestrates: captcha (8080), server (8081), scheduler; defines shared db-data volume
+.env.local             — (git-ignored) local overrides: GMAIL_USER, GMAIL_APP_PASSWORD
 ```
 
-**VM:** GCE e2-micro `instance-20260427-141455`, us-west1-b, IP `35.212.154.47`, GCP project `sincere-office-494609-m3`
-**docker-compose.yml** (root) manages: captcha (8080), server (8081), scheduler
+**VM:** GCE e2-micro `instance-20260427-141455`, us-west1-b, IP `35.212.154.47`, GCP project `sincere-office-494609-m3` (free tier, 720 hours/month)
 
 ## Architecture Gotchas
 

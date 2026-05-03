@@ -111,6 +111,46 @@ test('DELETE /v1/bookings/:id：刪除後不應出現在列表', async () => {
   }
 });
 
+test('POST /v1/bookings/:id/refund：無 token 應回傳 401', async () => {
+  const server = http.createServer(app);
+  await new Promise(r => server.listen(0, r));
+  try {
+    const refundRes = await request(server, 'POST', '/v1/bookings/some-id/refund', null);
+    assert.strictEqual(refundRes.status, 401);
+  } finally {
+    await new Promise(r => server.close(r));
+  }
+});
+
+test('POST /v1/bookings/:id/refund：不存在的 id 應回傳 404', async () => {
+  const server = http.createServer(app);
+  await new Promise(r => server.listen(0, r));
+  try {
+    const token = makeToken();
+    const refundRes = await request(server, 'POST', '/v1/bookings/nonexistent-id/refund', null, { Authorization: `Bearer ${token}` });
+    assert.strictEqual(refundRes.status, 404);
+  } finally {
+    await new Promise(r => server.close(r));
+  }
+});
+
+test('POST /v1/bookings/:id/refund：非 success 狀態應回傳 400', async () => {
+  const server = http.createServer(app);
+  await new Promise(r => server.listen(0, r));
+  try {
+    const token = makeToken();
+    const createRes = await request(server, 'POST', '/v1/bookings', BOOKING_FIXTURE, { Authorization: `Bearer ${token}` });
+    assert.strictEqual(createRes.status, 200);
+    const id = createRes.body.id;
+
+    const refundRes = await request(server, 'POST', `/v1/bookings/${id}/refund`, null, { Authorization: `Bearer ${token}` });
+    assert.strictEqual(refundRes.status, 400);
+    assert.ok(refundRes.body.error);
+  } finally {
+    await new Promise(r => server.close(r));
+  }
+});
+
 test('GET /v1/bookings/:id/attempts：應回傳空陣列（新訂票無嘗試）', async () => {
   const server = http.createServer(app);
   await new Promise(r => server.listen(0, r));

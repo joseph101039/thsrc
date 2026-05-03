@@ -20,6 +20,7 @@ router.get('/bookings',               verifyJwt, bookingController.listBookings)
 router.post('/bookings',              verifyJwt, bookingController.createBooking);
 router.delete('/bookings/:id',        verifyJwt, bookingController.deleteBooking);
 router.get('/bookings/:id/attempts',  verifyJwt, bookingController.getAttempts);
+router.post('/bookings/:id/refund',   verifyJwt, bookingController.refundBooking);
 
 router.get('/users',           verifyJwt, adminOnly, userController.listUsers);
 router.post('/users',          verifyJwt, adminOnly, userController.addUser);

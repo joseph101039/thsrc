@@ -73,6 +73,15 @@ function _migrate(db) {
     INSERT OR IGNORE INTO allowed_users (email, role, created_at)
     VALUES (?, 'admin', ?)
   `).run('joseph101039@gmail.com', new Date().toISOString());
+
+  // 退票欄位 migration
+  const bookingCols = db.prepare('PRAGMA table_info(bookings)').all().map(r => r.name);
+  if (!bookingCols.includes('refund_status')) {
+    db.exec("ALTER TABLE bookings ADD COLUMN refund_status TEXT");
+  }
+  if (!bookingCols.includes('refund_message')) {
+    db.exec("ALTER TABLE bookings ADD COLUMN refund_message TEXT");
+  }
 }
 
 function _toCamel(row) {
