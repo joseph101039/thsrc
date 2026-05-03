@@ -74,6 +74,7 @@ async function submitBooking() {
       passengerId, fromStation, toStation, date,
       desiredTime, earliestTime, latestTime,
       maxRetries, scheduledAt,
+      immediate: bookingMode === 'immediate',
     });
     location.href = 'index.html';
   } catch (err) {

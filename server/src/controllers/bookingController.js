@@ -3,6 +3,7 @@
 const bookingService = require('../services/bookingService');
 const bookingRepo = require('../repositories/bookingRepo');
 const { runRefund } = require('../services/refundEngineService');
+const { runBooking } = require('../services/bookingEngineService');
 
 /**
  * @swagger
@@ -63,7 +64,11 @@ function listBookings(req, res) {
  */
 function createBooking(req, res) {
   try {
-    res.json(bookingService.createBooking(req.body));
+    const result = bookingService.createBooking(req.body);
+    if (req.body.immediate && result.id) {
+      runBooking(result.id).catch(err => console.error('createBooking immediate runBooking error:', err.message));
+    }
+    res.json(result);
   } catch (err) {
     console.error('createBooking error:', err.message);
     res.status(500).json({ error: err.message });
