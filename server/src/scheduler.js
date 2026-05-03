@@ -35,8 +35,6 @@ async function pollPendingBookings() {
   if (next) {
     console.log(`  [run] bookingId=${next.id} ${next.fromStation}→${next.toStation} ${next.date} ${next.earliestTime}~${next.latestTime} retry=${next.retryCount}/${next.maxRetries}`);
     await runBooking(next.id);
-  } else {
-    console.log('  [idle] no pending bookings');
   }
 }
 

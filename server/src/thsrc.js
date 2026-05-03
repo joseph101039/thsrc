@@ -530,17 +530,20 @@ async function thsrcCancelBooking(ticketNo, passenger) {
 }
 
 function parseBookingResult(html) {
-  // S4 HTML 格式：<td ...>訂位代號</td><td class="td-data"><p class="pnr-code"><span>XXXXXXXX</span></p>
+  // 成功：<td ...>訂位代號</td>...<p class="pnr-code"><span>XXXXXXXX</span></p>
   const ticketMatch = html.match(/訂位代號<\/td>[\s\S]{0,300}?<p[^>]*pnr[^>]*>[\s\S]{0,50}?<span>\s*(\d{6,10})\s*<\/span>/);
   if (ticketMatch) {
     return { success: true, ticketNo: ticketMatch[1], error: null };
   }
-  const errorMatch = html.match(/class="[^"]*error[^"]*"[^>]*>([^<]{3,100})</);
-  return {
-    success: false,
-    ticketNo: null,
-    error: errorMatch ? errorMatch[1].trim() : '訂票失敗（未知原因）',
-  };
+  // 高鐵 S3 表單驗證失敗：feedbackPanelERROR 裡有明確訊息
+  const feedbackMatch = html.match(/<span[^>]*feedbackPanelERROR[^>]*>([^<]{3,200})<\/span>/);
+  if (feedbackMatch) {
+    return { success: false, ticketNo: null, error: feedbackMatch[1].trim() };
+  }
+  // 通用 error class 元素
+  const errorMatch = html.match(/class="[^"]*(?:error|alert-danger)[^"]*"[^>]*>\s*([^<]{5,200})/);
+  const msg = (errorMatch && errorMatch[1].trim()) || '訂票失敗（未知原因）';
+  return { success: false, ticketNo: null, error: msg };
 }
 
 module.exports = { thsrcInit, thsrcGetCaptcha, thsrcQueryTrains, thsrcSubmitBooking, thsrcCancelBooking, selectBestTrain, parseTrainOptions };
