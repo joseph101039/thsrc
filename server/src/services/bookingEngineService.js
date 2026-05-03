@@ -112,7 +112,8 @@ function handleRetry(booking, reason) {
       status: CONFIG.BOOKING_STATUS.PENDING,
       scheduledAt: retryAt,
     });
-    console.log('Scheduled retry', newRetryCount, '/', booking.maxRetries, 'for booking:', booking.id);
+    setTimeout(() => runBooking(booking.id).catch(err => console.error(`  [retry-timeout] bookingId=${booking.id} error:`, err.message)), waitMs);
+    console.log('Scheduled retry', newRetryCount, '/', booking.maxRetries, 'for booking:', booking.id, `in ${waitMs}ms`);
   }
 }
 

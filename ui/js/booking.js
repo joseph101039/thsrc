@@ -60,9 +60,9 @@ async function submitBooking() {
   if (!desiredTime)                { alert('請選擇期望時間'); return; }
   if (!earliestTime || !latestTime){ alert('請選擇允許時間區間'); return; }
   if (earliestTime >= latestTime)  { alert('最早時間必須早於最晚時間'); return; }
-  const maxWait = retryWaitUnit === 'minute' ? 60 : 59;
+  const maxWait = retryWaitUnit === 'minute' ? 60 : 300;
   if (!retryWaitValue || retryWaitValue < 1 || retryWaitValue > maxWait) {
-    alert(`重試間隔：分鐘請填 1–60，秒請填 1–59`);
+    alert(`重試間隔：分鐘請填 1–60，秒請填 1–300`);
     return;
   }
 

@@ -13,7 +13,7 @@ function createBooking(data) {
     throw Object.assign(new Error('retryWaitUnit 必須為 minute 或 second'), { status: 400 });
   }
   if (retryWaitValue !== undefined) {
-    const max = retryWaitUnit === 'second' ? 59 : 60;
+    const max = retryWaitUnit === 'second' ? 300 : 60;
     if (!Number.isInteger(retryWaitValue) || retryWaitValue < 1 || retryWaitValue > max) {
       throw Object.assign(new Error('retryWaitValue 超出允許範圍'), { status: 400 });
     }
