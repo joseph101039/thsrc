@@ -104,7 +104,10 @@ function handleRetry(booking, reason) {
     bookingRepo.updateFields(booking.id, { status: CONFIG.BOOKING_STATUS.FAILED });
     console.log('Booking failed after max retries:', booking.id);
   } else {
-    const retryAt = new Date(Date.now() + CONFIG.RETRY_WAIT_MINUTES * 60 * 1000).toISOString();
+    const waitValue = booking.retryWaitValue ?? CONFIG.RETRY_WAIT_MINUTES;
+    const waitUnit  = booking.retryWaitUnit  ?? 'minute';
+    const waitMs    = waitUnit === 'second' ? waitValue * 1000 : waitValue * 60 * 1000;
+    const retryAt   = new Date(Date.now() + waitMs).toISOString();
     bookingRepo.updateFields(booking.id, {
       status: CONFIG.BOOKING_STATUS.PENDING,
       scheduledAt: retryAt,
