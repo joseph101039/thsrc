@@ -26,6 +26,7 @@ async function runRefund(bookingId) {
       refundStatus: CONFIG.REFUND_STATUS.REFUND_FAILED,
       refundMessage: err.message,
     });
+    bookingRepo.createAttempt({ bookingId, success: false, reason: '退票失敗：' + err.message });
   }
 }
 
@@ -41,12 +42,14 @@ async function _doRefund(bookingId, booking) {
       refundStatus: CONFIG.REFUND_STATUS.REFUNDED,
       refundMessage: result.message,
     });
+    bookingRepo.createAttempt({ bookingId, success: true, reason: '退票成功：' + (result.message || '') });
     console.log('退票成功：', bookingId, booking.ticketNo);
   } else {
     bookingRepo.updateFields(bookingId, {
       refundStatus: CONFIG.REFUND_STATUS.REFUND_FAILED,
       refundMessage: result.message,
     });
+    bookingRepo.createAttempt({ bookingId, success: false, reason: '退票失敗：' + (result.message || '') });
     console.log('退票失敗：', bookingId, result.message);
   }
 }
