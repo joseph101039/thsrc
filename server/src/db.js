@@ -91,6 +91,30 @@ function _migrate(db) {
   if (!bookingCols.includes('retry_wait_unit')) {
     db.exec("ALTER TABLE bookings ADD COLUMN retry_wait_unit TEXT NOT NULL DEFAULT 'minute'");
   }
+  if (!bookingCols.includes('ticket_adult')) {
+    db.exec("ALTER TABLE bookings ADD COLUMN ticket_adult INTEGER NOT NULL DEFAULT 1");
+  }
+  if (!bookingCols.includes('ticket_child')) {
+    db.exec("ALTER TABLE bookings ADD COLUMN ticket_child INTEGER NOT NULL DEFAULT 0");
+  }
+  if (!bookingCols.includes('ticket_disabled')) {
+    db.exec("ALTER TABLE bookings ADD COLUMN ticket_disabled INTEGER NOT NULL DEFAULT 0");
+  }
+  if (!bookingCols.includes('ticket_senior')) {
+    db.exec("ALTER TABLE bookings ADD COLUMN ticket_senior INTEGER NOT NULL DEFAULT 0");
+  }
+  if (!bookingCols.includes('ticket_student')) {
+    db.exec("ALTER TABLE bookings ADD COLUMN ticket_student INTEGER NOT NULL DEFAULT 0");
+  }
+  if (!bookingCols.includes('search_mode')) {
+    db.exec("ALTER TABLE bookings ADD COLUMN search_mode TEXT NOT NULL DEFAULT 'time'");
+  }
+  if (!bookingCols.includes('train_no_target')) {
+    db.exec("ALTER TABLE bookings ADD COLUMN train_no_target TEXT");
+  }
+  if (!bookingCols.includes('owner_email')) {
+    db.exec("ALTER TABLE bookings ADD COLUMN owner_email TEXT NOT NULL DEFAULT ''");
+  }
 }
 
 function _toCamel(row) {
