@@ -78,7 +78,7 @@ Five enhancements to the booking system, split into two areas:
 
 ### Feature 4 — Booking Ownership and Operation Permissions
 
-**What:** Each booking is owned by the user who created it. `user` role can only view and mutate their own bookings; `admin` can access all.
+**What:** Each booking is owned by the user who created it. All roles can view all bookings; `user` role can only mutate their own bookings; `admin` can mutate all.
 
 **Backend — DB migration**: Add `owner_email TEXT NOT NULL DEFAULT ''` to `bookings` table.
 
