@@ -86,9 +86,9 @@ Five enhancements to the booking system, split into two areas:
 
 **Backend — `bookingController.createBooking()`**: Pass `req.user.email` as `ownerEmail`.
 
-**Backend — `bookingRepo.getAll()`**: Accepts optional `ownerEmail` filter. When provided, adds `WHERE owner_email = ?`.
+**Backend — `bookingRepo.getAll()`**: No filter — always returns all bookings.
 
-**Backend — `bookingController.listBookings()`**: If `req.user.role === 'admin'`, call `getAll()` with no filter. Otherwise call `getAll(req.user.email)`.
+**Backend — `bookingController.listBookings()`**: Returns all bookings regardless of role. Both `user` and `admin` can see everyone's bookings.
 
 **Backend — delete / cancel / refund**: Before executing, check `booking.ownerEmail === req.user.email || req.user.role === 'admin'`. If not, return 403.
 
