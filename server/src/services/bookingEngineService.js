@@ -33,8 +33,8 @@ async function runBooking(bookingId) {
 
 async function _doBooking(bookingId, booking) {
   console.log('  [1/5] thsrcInit...');
-  const { cookieJar, formAction, captchaUrl, bookingMethod } = await thsrcInit();
-  console.log(`  [1/5] done — bookingMethod=${bookingMethod} formAction=${formAction.slice(0, 60)}...`);
+  const { cookieJar, formAction, captchaUrl, bookingMethod, bookingMethodTrain } = await thsrcInit();
+  console.log(`  [1/5] done — bookingMethod=${bookingMethod} bookingMethodTrain=${bookingMethodTrain} formAction=${formAction.slice(0, 60)}...`);
 
   console.log('  [2/5] thsrcGetCaptcha...');
   const captchaBase64 = await thsrcGetCaptcha(cookieJar, captchaUrl);
@@ -51,8 +51,8 @@ async function _doBooking(bookingId, booking) {
   const captchaAnswer = captchaJson.answer;
   console.log(`  [3/5] done — answer=${captchaAnswer} confidence=${captchaJson.confidence ? captchaJson.confidence.map(c => c.toFixed(2)).join(',') : 'n/a'}`);
 
-  console.log(`  [4/5] thsrcQueryTrains ${booking.fromStation}→${booking.toStation} ${booking.date} ${booking.earliestTime}~${booking.latestTime}...`);
-  const { trains, s2FormAction, cookieJar: queryCookieJar } = await thsrcQueryTrains(cookieJar, formAction, {
+  console.log(`  [4/5] thsrcQueryTrains ${booking.fromStation}→${booking.toStation} ${booking.date} ${booking.earliestTime}~${booking.latestTime} searchMode=${booking.searchMode} trainNoTarget=${booking.trainNoTarget}...`);
+  const { trains, s2FormAction, isDirectS3, cookieJar: queryCookieJar } = await thsrcQueryTrains(cookieJar, formAction, {
     fromStation: booking.fromStation,
     toStation: booking.toStation,
     date: booking.date,
@@ -60,25 +60,54 @@ async function _doBooking(bookingId, booking) {
     latestTime: booking.latestTime,
     captcha: captchaAnswer,
     bookingMethod,
+    bookingMethodTrain,
+    searchMode: booking.searchMode,
+    trainNoTarget: booking.trainNoTarget,
+    ticketAdult: booking.ticketAdult,
+    ticketChild: booking.ticketChild,
+    ticketDisabled: booking.ticketDisabled,
+    ticketSenior: booking.ticketSenior,
+    ticketStudent: booking.ticketStudent,
   });
-  console.log(`  [4/5] done — ${trains.length} trains found, s2FormAction=${s2FormAction ? s2FormAction.slice(0, 60) + '...' : 'null'}`);
+  console.log(`  [4/5] done — ${trains.length} trains found, isDirectS3=${isDirectS3} s2FormAction=${s2FormAction ? s2FormAction.slice(0, 60) + '...' : 'null'}`);
   trains.forEach(t => console.log(`    班次 ${t.trainNo} ${t.departTime}→${t.arriveTime} (${t.radioValue})`));
 
-  if (trains.length === 0) {
+  // 車次模式：S1 直接回傳 S3 — trains 為空陣列，但 s2FormAction（實為 S3 URL）存在則繼續
+  if (!isDirectS3 && trains.length === 0) {
+    return handleRetry(booking, '無可用班次');
+  }
+  if (!s2FormAction) {
     return handleRetry(booking, '無可用班次');
   }
 
-  const bestTrain = selectBestTrain(trains, booking.desiredTime);
-  console.log(`  [4/5] selected — 車次 ${bestTrain.trainNo} ${bestTrain.departTime}→${bestTrain.arriveTime} (desired=${booking.desiredTime})`);
-  bookingRepo.updateFields(bookingId, { trainNo: bestTrain.trainNo });
+  // 車次模式：trainNo 為 booking.trainNoTarget，radioValue 在直接 S3 時不使用
+  // 時間模式：選出最佳班次
+  let trainNoForLog, radioValueForSubmit, bestTrain;
+  if (isDirectS3) {
+    trainNoForLog = booking.trainNoTarget;
+    radioValueForSubmit = booking.trainNoTarget;
+    bookingRepo.updateFields(bookingId, { trainNo: booking.trainNoTarget });
+  } else {
+    bestTrain = selectBestTrain(trains, booking.desiredTime);
+    console.log(`  [4/5] selected — 車次 ${bestTrain.trainNo} ${bestTrain.departTime}→${bestTrain.arriveTime} (desired=${booking.desiredTime})`);
+    bookingRepo.updateFields(bookingId, { trainNo: bestTrain.trainNo });
+    trainNoForLog = bestTrain.trainNo;
+    radioValueForSubmit = bestTrain.radioValue;
+  }
 
   const passenger = passengerRepo.getById(booking.passengerId);
   if (!passenger) throw new Error('旅客資料不存在：' + booking.passengerId);
-  console.log(`  [5/5] thsrcSubmitBooking trainNo=${bestTrain.trainNo} radioValue=${bestTrain.radioValue} passenger.idNumber=${passenger.idNumber.slice(0, 3)}... phone=${passenger.phone} email=${passenger.email}`);
+  console.log(`  [5/5] thsrcSubmitBooking trainNo=${trainNoForLog} isDirectS3=${isDirectS3} passenger.idNumber=${passenger.idNumber.slice(0, 3)}... phone=${passenger.phone} email=${passenger.email}`);
   const result = await thsrcSubmitBooking(queryCookieJar, s2FormAction, {
-    trainNo: bestTrain.radioValue,
+    trainNo: radioValueForSubmit,
     captcha: captchaAnswer,
     passenger: { idNumber: passenger.idNumber, phone: passenger.phone || '', email: passenger.email },
+    isDirectS3,
+    ticketAdult: booking.ticketAdult,
+    ticketChild: booking.ticketChild,
+    ticketDisabled: booking.ticketDisabled,
+    ticketSenior: booking.ticketSenior,
+    ticketStudent: booking.ticketStudent,
   });
   console.log(`  [5/5] done — success=${result.success} ticketNo=${result.ticketNo} error=${result.error}`);
 
@@ -86,7 +115,7 @@ async function _doBooking(bookingId, booking) {
     bookingRepo.updateFields(bookingId, {
       status: CONFIG.BOOKING_STATUS.SUCCESS,
       ticketNo: result.ticketNo,
-      departTime: bestTrain.departTime,
+      departTime: isDirectS3 ? null : bestTrain.departTime,
     });
     bookingRepo.createAttempt({ bookingId, success: true, reason: null });
     console.log('  [done] 訂票成功：', bookingId, result.ticketNo);

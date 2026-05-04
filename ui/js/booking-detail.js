@@ -32,7 +32,19 @@ function formatTW(isoStr) {
   });
 }
 
-function renderDetail(booking, attempts) {
+function ticketSummary(booking) {
+  const types = [
+    { key: 'ticketAdult',    label: '全票' },
+    { key: 'ticketChild',    label: '孩童票' },
+    { key: 'ticketDisabled', label: '愛心票' },
+    { key: 'ticketSenior',   label: '敬老票' },
+    { key: 'ticketStudent',  label: '大學生票' },
+  ];
+  const parts = types.filter(t => (booking[t.key] || 0) > 0).map(t => `${t.label}×${booking[t.key]}`);
+  return parts.length ? parts.join('、') : '全票×1';
+}
+
+function renderDetail(booking, attempts, passenger, myEmail) {
   const s = STATUS_LABEL[booking.status] || { text: booking.status, cls: '' };
 
   const attemptsHtml = attempts.length === 0
@@ -47,6 +59,15 @@ function renderDetail(booking, attempts) {
           </div>
         </li>`).join('')}</ul>`;
 
+  const passengerLine = passenger
+    ? `<div class="card-sub">乘客：${escapeHtml(passenger.name)}（${escapeHtml(maskId(passenger.idNumber, passenger.email, myEmail))}）</div>`
+    : '';
+
+  const searchLine = booking.searchMode === 'train'
+    ? `<div class="card-sub">搜尋車次：${escapeHtml(booking.trainNoTarget || '—')}</div>`
+    : `<div class="card-sub">期望時間：${booking.desiredTime}</div>
+       <div class="card-sub">允許區間：${booking.earliestTime} ~ ${booking.latestTime}</div>`;
+
   return `
     <div class="section-title">訂單資訊</div>
     <div class="card">
@@ -54,9 +75,10 @@ function renderDetail(booking, attempts) {
         <div class="card-title">${booking.fromStation} → ${booking.toStation}</div>
         <span class="badge ${s.cls}">${s.text}</span>
       </div>
+      ${passengerLine}
       <div class="card-sub">日期：${booking.date}</div>
-      <div class="card-sub">期望時間：${booking.desiredTime}</div>
-      <div class="card-sub">允許區間：${booking.earliestTime} ~ ${booking.latestTime}</div>
+      ${searchLine}
+      <div class="card-sub">票種：${ticketSummary(booking)}</div>
       ${booking.scheduledAt ? `<div class="card-sub">預約時間：${formatTW(booking.scheduledAt)}</div>` : ''}
       <div class="card-sub">嘗試次數：${booking.retryCount || 0} / ${booking.maxRetries}</div>
       <div class="card-sub">嘗試間隔：${booking.retryWaitValue ?? 2} ${(booking.retryWaitUnit ?? 'minute') === 'minute' ? '分' : '秒'}</div>
@@ -79,10 +101,13 @@ async function loadDetail() {
     return;
   }
 
+  const myEmail = window.__auth.getEmail();
+
   try {
-    const [{ bookings }, { attempts }] = await Promise.all([
+    const [{ bookings }, { attempts }, { passengers }] = await Promise.all([
       api.getBookings(),
       api.getBookingAttempts(bookingId),
+      api.getPassengers(),
     ]);
 
     const booking = bookings.find(b => b.id === bookingId);
@@ -91,9 +116,11 @@ async function loadDetail() {
       return;
     }
 
+    const passenger = (passengers || []).find(p => p.id === booking.passengerId);
+
     document.getElementById('page-title').textContent =
       `${booking.fromStation} → ${booking.toStation}`;
-    el.innerHTML = renderDetail(booking, attempts);
+    el.innerHTML = renderDetail(booking, attempts, passenger, myEmail);
   } catch (err) {
     el.innerHTML = `<div class="alert alert-warning">載入失敗：${err.message}</div>`;
   }

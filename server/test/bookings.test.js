@@ -287,3 +287,169 @@ test('POST /v1/bookings：只提供 retryWaitUnit 不提供 retryWaitValue 應�
     await new Promise(r => server.close(r));
   }
 });
+
+test('POST /v1/bookings：ticketAdult=0 其他也都是 0 應回傳 400', async () => {
+  const server = http.createServer(app);
+  await new Promise(r => server.listen(0, r));
+  try {
+    const token = makeToken();
+    const res = await request(server, 'POST', '/v1/bookings', {
+      ...BOOKING_FIXTURE,
+      ticketAdult: 0, ticketChild: 0, ticketDisabled: 0, ticketSenior: 0, ticketStudent: 0,
+    }, { Authorization: `Bearer ${token}` });
+    assert.strictEqual(res.status, 400);
+  } finally {
+    await new Promise(r => server.close(r));
+  }
+});
+
+test('POST /v1/bookings：ticketAdult=11 應回傳 400', async () => {
+  const server = http.createServer(app);
+  await new Promise(r => server.listen(0, r));
+  try {
+    const token = makeToken();
+    const res = await request(server, 'POST', '/v1/bookings', {
+      ...BOOKING_FIXTURE,
+      ticketAdult: 11,
+    }, { Authorization: `Bearer ${token}` });
+    assert.strictEqual(res.status, 400);
+  } finally {
+    await new Promise(r => server.close(r));
+  }
+});
+
+test('POST /v1/bookings：searchMode=train 且無 trainNoTarget 應回傳 400', async () => {
+  const server = http.createServer(app);
+  await new Promise(r => server.listen(0, r));
+  try {
+    const token = makeToken();
+    const res = await request(server, 'POST', '/v1/bookings', {
+      ...BOOKING_FIXTURE,
+      searchMode: 'train',
+    }, { Authorization: `Bearer ${token}` });
+    assert.strictEqual(res.status, 400);
+  } finally {
+    await new Promise(r => server.close(r));
+  }
+});
+
+test('POST /v1/bookings：ticket counts 和 searchMode 應被儲存並回傳', async () => {
+  const server = http.createServer(app);
+  await new Promise(r => server.listen(0, r));
+  try {
+    const token = makeToken();
+    const createRes = await request(server, 'POST', '/v1/bookings', {
+      ...BOOKING_FIXTURE,
+      ticketAdult: 2, ticketChild: 1,
+    }, { Authorization: `Bearer ${token}` });
+    assert.strictEqual(createRes.status, 200);
+    const id = createRes.body.id;
+
+    const listRes = await request(server, 'GET', '/v1/bookings', null, { Authorization: `Bearer ${token}` });
+    const booking = listRes.body.bookings.find(b => b.id === id);
+    assert.strictEqual(booking.ticketAdult, 2);
+    assert.strictEqual(booking.ticketChild, 1);
+    assert.strictEqual(booking.searchMode, 'time');
+    assert.strictEqual(booking.ownerEmail, 'joseph101039@gmail.com');
+  } finally {
+    await new Promise(r => server.close(r));
+  }
+});
+
+function makeTokenFor(email, role = 'user') {
+  return jwt.sign({ email, role }, 'test-secret', { expiresIn: '1h' });
+}
+
+function seedUser(email, role = 'user') {
+  const userRepo = require('../src/repositories/userRepo');
+  try { userRepo.add({ email, role }); } catch { /* already exists */ }
+}
+
+test('DELETE /v1/bookings/:id：user 刪除他人的訂票應回傳 403', async () => {
+  seedUser('owner@example.com'); seedUser('other@example.com');
+  const server = http.createServer(app);
+  await new Promise(r => server.listen(0, r));
+  try {
+    const ownerToken = makeTokenFor('owner@example.com');
+    const otherToken = makeTokenFor('other@example.com');
+
+    const createRes = await request(server, 'POST', '/v1/bookings', BOOKING_FIXTURE, { Authorization: `Bearer ${ownerToken}` });
+    assert.strictEqual(createRes.status, 200);
+    const id = createRes.body.id;
+
+    await request(server, 'POST', `/v1/bookings/${id}/cancel`, null, { Authorization: `Bearer ${ownerToken}` });
+
+    const delRes = await request(server, 'DELETE', `/v1/bookings/${id}`, null, { Authorization: `Bearer ${otherToken}` });
+    assert.strictEqual(delRes.status, 403);
+
+    // 清理
+    await request(server, 'DELETE', `/v1/bookings/${id}`, null, { Authorization: `Bearer ${ownerToken}` });
+  } finally {
+    await new Promise(r => server.close(r));
+  }
+});
+
+test('POST /v1/bookings/:id/cancel：user 取消他人的訂票應回傳 403', async () => {
+  seedUser('owner2@example.com'); seedUser('other2@example.com');
+  const server = http.createServer(app);
+  await new Promise(r => server.listen(0, r));
+  try {
+    const ownerToken = makeTokenFor('owner2@example.com');
+    const otherToken = makeTokenFor('other2@example.com');
+
+    const createRes = await request(server, 'POST', '/v1/bookings', BOOKING_FIXTURE, { Authorization: `Bearer ${ownerToken}` });
+    const id = createRes.body.id;
+
+    const cancelRes = await request(server, 'POST', `/v1/bookings/${id}/cancel`, null, { Authorization: `Bearer ${otherToken}` });
+    assert.strictEqual(cancelRes.status, 403);
+
+    // 清理
+    await request(server, 'POST', `/v1/bookings/${id}/cancel`, null, { Authorization: `Bearer ${ownerToken}` });
+    await request(server, 'DELETE', `/v1/bookings/${id}`, null, { Authorization: `Bearer ${ownerToken}` });
+  } finally {
+    await new Promise(r => server.close(r));
+  }
+});
+
+test('admin 可以刪除他人的訂票', async () => {
+  seedUser('owner3@example.com');
+  const server = http.createServer(app);
+  await new Promise(r => server.listen(0, r));
+  try {
+    const ownerToken = makeTokenFor('owner3@example.com');
+    const adminToken = makeTokenFor('joseph101039@gmail.com', 'admin');
+
+    const createRes = await request(server, 'POST', '/v1/bookings', BOOKING_FIXTURE, { Authorization: `Bearer ${ownerToken}` });
+    const id = createRes.body.id;
+
+    const cancelRes = await request(server, 'POST', `/v1/bookings/${id}/cancel`, null, { Authorization: `Bearer ${adminToken}` });
+    assert.strictEqual(cancelRes.status, 200);
+
+    const delRes = await request(server, 'DELETE', `/v1/bookings/${id}`, null, { Authorization: `Bearer ${adminToken}` });
+    assert.strictEqual(delRes.status, 200);
+  } finally {
+    await new Promise(r => server.close(r));
+  }
+});
+
+test('POST /v1/bookings/:id/refund：user 退票他人訂票應回傳 403', async () => {
+  seedUser('owner4@example.com'); seedUser('other4@example.com');
+  const server = http.createServer(app);
+  await new Promise(r => server.listen(0, r));
+  try {
+    const ownerToken = makeTokenFor('owner4@example.com');
+    const otherToken = makeTokenFor('other4@example.com');
+
+    const createRes = await request(server, 'POST', '/v1/bookings', BOOKING_FIXTURE, { Authorization: `Bearer ${ownerToken}` });
+    const id = createRes.body.id;
+
+    const refundRes = await request(server, 'POST', `/v1/bookings/${id}/refund`, null, { Authorization: `Bearer ${otherToken}` });
+    assert.strictEqual(refundRes.status, 403);
+
+    // 清理
+    await request(server, 'POST', `/v1/bookings/${id}/cancel`, null, { Authorization: `Bearer ${ownerToken}` });
+    await request(server, 'DELETE', `/v1/bookings/${id}`, null, { Authorization: `Bearer ${ownerToken}` });
+  } finally {
+    await new Promise(r => server.close(r));
+  }
+});

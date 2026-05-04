@@ -1,12 +1,31 @@
 const STATIONS = ['南港', '台北', '板橋', '桃園', '新竹', '苗栗', '台中', '彰化', '雲林', '嘉義', '台南', '左營'];
 
 let bookingMode = 'immediate';
+let searchMode = 'time';
+
+const ticketCounts = { adult: 1, child: 0, disabled: 0, senior: 0, student: 0 };
 
 function setMode(mode) {
   bookingMode = mode;
   document.getElementById('btn-immediate').classList.toggle('active', mode === 'immediate');
   document.getElementById('btn-scheduled').classList.toggle('active', mode === 'scheduled');
   document.getElementById('scheduled-fields').style.display = mode === 'scheduled' ? 'grid' : 'none';
+}
+
+function setSearchMode(mode) {
+  searchMode = mode;
+  document.getElementById('btn-mode-time').style.background = mode === 'time' ? '#4A90E2' : '#fff';
+  document.getElementById('btn-mode-time').style.color = mode === 'time' ? '#fff' : '#4A90E2';
+  document.getElementById('btn-mode-train').style.background = mode === 'train' ? '#4A90E2' : '#fff';
+  document.getElementById('btn-mode-train').style.color = mode === 'train' ? '#fff' : '#4A90E2';
+  document.getElementById('time-fields').style.display = mode === 'time' ? '' : 'none';
+  document.getElementById('train-fields').style.display = mode === 'train' ? '' : 'none';
+}
+
+function changeTicket(type, delta) {
+  const newVal = Math.max(0, Math.min(10, ticketCounts[type] + delta));
+  ticketCounts[type] = newVal;
+  document.getElementById(`ticket-${type}-val`).textContent = newVal;
 }
 
 function swapStations() {
@@ -21,21 +40,26 @@ function initStationSelects() {
   const fromEl = document.getElementById('b-from');
   const toEl   = document.getElementById('b-to');
   STATIONS.forEach((s, i) => {
-    fromEl.add(new Option(s, s, false, i === 1));  // 預設台北
-    toEl.add(new Option(s, s, false, i === 6));    // 預設台中
+    fromEl.add(new Option(s, s, false, i === 1));
+    toEl.add(new Option(s, s, false, i === 6));
   });
 }
 
 async function loadPassengers() {
   const sel = document.getElementById('b-passenger');
+  const myEmail = window.__auth.getEmail();
   try {
     const { passengers } = await api.getPassengers();
     if (!passengers || passengers.length === 0) {
       sel.innerHTML = '<option value="">請先至「乘客設定」新增乘客</option>';
       return;
     }
-    sel.innerHTML = passengers
-      .map(p => `<option value="${p.id}">${p.name}（${p.idNumber}）</option>`)
+    const sorted = [
+      ...passengers.filter(p => p.email === myEmail),
+      ...passengers.filter(p => p.email !== myEmail),
+    ];
+    sel.innerHTML = sorted
+      .map(p => `<option value="${p.id}">${p.name}（${maskId(p.idNumber, p.email, myEmail)}）</option>`)
       .join('');
   } catch (err) {
     sel.innerHTML = '<option value="">載入失敗</option>';
@@ -46,24 +70,41 @@ async function submitBooking() {
   const passengerId  = document.getElementById('b-passenger').value;
   const fromStation  = document.getElementById('b-from').value;
   const toStation    = document.getElementById('b-to').value;
-  const date         = document.getElementById('b-date').value;
-  const desiredTime  = document.getElementById('b-desired-time').value;
-  const earliestTime = document.getElementById('b-earliest').value;
-  const latestTime   = document.getElementById('b-latest').value;
   const maxRetries     = parseInt(document.getElementById('b-max-retries').value);
   const retryWaitValue = parseInt(document.getElementById('b-retry-wait-value').value);
   const retryWaitUnit  = document.getElementById('b-retry-wait-unit').value;
 
-  if (!passengerId)                { alert('請選擇乘客'); return; }
-  if (!date)                       { alert('請選擇乘車日期'); return; }
-  if (fromStation === toStation)   { alert('出發站與到達站不能相同'); return; }
-  if (!desiredTime)                { alert('請選擇期望時間'); return; }
-  if (!earliestTime || !latestTime){ alert('請選擇允許時間區間'); return; }
-  if (earliestTime >= latestTime)  { alert('最早時間必須早於最晚時間'); return; }
+  if (!passengerId)              { alert('請選擇乘客'); return; }
+  if (fromStation === toStation) { alert('出發站與到達站不能相同'); return; }
+
+  const totalTickets = Object.values(ticketCounts).reduce((a, b) => a + b, 0);
+  if (totalTickets < 1) { alert('至少需要一張票'); return; }
+
   const maxWait = retryWaitUnit === 'minute' ? 60 : 300;
   if (!retryWaitValue || retryWaitValue < 1 || retryWaitValue > maxWait) {
     alert(`重試間隔：分鐘請填 1–60，秒請填 1–300`);
     return;
+  }
+
+  let date, desiredTime, earliestTime, latestTime, trainNoTarget;
+
+  if (searchMode === 'time') {
+    date         = document.getElementById('b-date').value;
+    desiredTime  = document.getElementById('b-desired-time').value;
+    earliestTime = document.getElementById('b-earliest').value;
+    latestTime   = document.getElementById('b-latest').value;
+    if (!date)                        { alert('請選擇乘車日期'); return; }
+    if (!desiredTime)                 { alert('請選擇期望時間'); return; }
+    if (!earliestTime || !latestTime) { alert('請選擇允許時間區間'); return; }
+    if (earliestTime >= latestTime)   { alert('最早時間必須早於最晚時間'); return; }
+  } else {
+    date          = document.getElementById('b-date-train').value;
+    trainNoTarget = document.getElementById('b-train-no-target').value.trim();
+    desiredTime   = '00:00';
+    earliestTime  = '00:00';
+    latestTime    = '23:59';
+    if (!date)          { alert('請選擇乘車日期'); return; }
+    if (!trainNoTarget) { alert('請輸入車次號碼'); return; }
   }
 
   let scheduledAt = null;
@@ -84,6 +125,13 @@ async function submitBooking() {
       desiredTime, earliestTime, latestTime,
       maxRetries, scheduledAt,
       retryWaitValue, retryWaitUnit,
+      ticketAdult:    ticketCounts.adult,
+      ticketChild:    ticketCounts.child,
+      ticketDisabled: ticketCounts.disabled,
+      ticketSenior:   ticketCounts.senior,
+      ticketStudent:  ticketCounts.student,
+      searchMode,
+      trainNoTarget: trainNoTarget || null,
       immediate: bookingMode === 'immediate',
     });
     location.href = 'index.html';
@@ -99,9 +147,9 @@ const tomorrow = new Date();
 tomorrow.setDate(tomorrow.getDate() + 1);
 const tomorrowStr = tomorrow.toISOString().slice(0, 10);
 document.getElementById('b-date').value = tomorrowStr;
+document.getElementById('b-date-train').value = tomorrowStr;
 document.getElementById('b-schedule-date').value = tomorrowStr;
 
-// 依期望時間自動更新允許最早（-2hr）和最晚（+2hr）
 function updateTimeRange() {
   const desired = document.getElementById('b-desired-time').value;
   if (!desired) return;

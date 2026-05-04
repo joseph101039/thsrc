@@ -30,22 +30,35 @@ function _initSchema(db) {
     );
 
     CREATE TABLE IF NOT EXISTS bookings (
-      id            TEXT PRIMARY KEY,
-      passenger_id  TEXT NOT NULL,
-      from_station  TEXT NOT NULL,
-      to_station    TEXT NOT NULL,
-      date          TEXT NOT NULL,
-      desired_time  TEXT NOT NULL,
-      earliest_time TEXT NOT NULL,
-      latest_time   TEXT NOT NULL,
-      max_retries   INTEGER NOT NULL DEFAULT 10,
-      scheduled_at  TEXT,
-      status        TEXT NOT NULL DEFAULT 'pending',
-      retry_count   INTEGER NOT NULL DEFAULT 0,
-      train_no      TEXT,
-      ticket_no     TEXT,
-      created_at    TEXT NOT NULL,
-      updated_at    TEXT NOT NULL
+      id              TEXT PRIMARY KEY,
+      passenger_id    TEXT NOT NULL,
+      from_station    TEXT NOT NULL,
+      to_station      TEXT NOT NULL,
+      date            TEXT NOT NULL,
+      desired_time    TEXT NOT NULL,
+      earliest_time   TEXT NOT NULL,
+      latest_time     TEXT NOT NULL,
+      max_retries     INTEGER NOT NULL DEFAULT 10,
+      scheduled_at    TEXT,
+      status          TEXT NOT NULL DEFAULT 'pending',
+      retry_count     INTEGER NOT NULL DEFAULT 0,
+      train_no        TEXT,
+      ticket_no       TEXT,
+      depart_time     TEXT,
+      refund_status   TEXT,
+      refund_message  TEXT,
+      retry_wait_value INTEGER NOT NULL DEFAULT 2,
+      retry_wait_unit  TEXT NOT NULL DEFAULT 'minute',
+      ticket_adult    INTEGER NOT NULL DEFAULT 1,
+      ticket_child    INTEGER NOT NULL DEFAULT 0,
+      ticket_disabled INTEGER NOT NULL DEFAULT 0,
+      ticket_senior   INTEGER NOT NULL DEFAULT 0,
+      ticket_student  INTEGER NOT NULL DEFAULT 0,
+      search_mode     TEXT NOT NULL DEFAULT 'time',
+      train_no_target TEXT,
+      owner_email     TEXT NOT NULL DEFAULT '',
+      created_at      TEXT NOT NULL,
+      updated_at      TEXT NOT NULL
     );
 
     CREATE TABLE IF NOT EXISTS booking_attempts (
@@ -90,6 +103,38 @@ function _migrate(db) {
   }
   if (!bookingCols.includes('retry_wait_unit')) {
     db.exec("ALTER TABLE bookings ADD COLUMN retry_wait_unit TEXT NOT NULL DEFAULT 'minute'");
+  }
+  if (!bookingCols.includes('ticket_adult')) {
+    db.exec("ALTER TABLE bookings ADD COLUMN ticket_adult INTEGER NOT NULL DEFAULT 1");
+  }
+  if (!bookingCols.includes('ticket_child')) {
+    db.exec("ALTER TABLE bookings ADD COLUMN ticket_child INTEGER NOT NULL DEFAULT 0");
+  }
+  if (!bookingCols.includes('ticket_disabled')) {
+    db.exec("ALTER TABLE bookings ADD COLUMN ticket_disabled INTEGER NOT NULL DEFAULT 0");
+  }
+  if (!bookingCols.includes('ticket_senior')) {
+    db.exec("ALTER TABLE bookings ADD COLUMN ticket_senior INTEGER NOT NULL DEFAULT 0");
+  }
+  if (!bookingCols.includes('ticket_student')) {
+    db.exec("ALTER TABLE bookings ADD COLUMN ticket_student INTEGER NOT NULL DEFAULT 0");
+  }
+  if (!bookingCols.includes('search_mode')) {
+    db.exec("ALTER TABLE bookings ADD COLUMN search_mode TEXT NOT NULL DEFAULT 'time'");
+  }
+  if (!bookingCols.includes('train_no_target')) {
+    db.exec("ALTER TABLE bookings ADD COLUMN train_no_target TEXT");
+  }
+  if (!bookingCols.includes('owner_email')) {
+    db.exec("ALTER TABLE bookings ADD COLUMN owner_email TEXT NOT NULL DEFAULT ''");
+    // 回填舊訂單的 owner_email（從 passengers 表取 email）
+    db.exec(`
+      UPDATE bookings
+      SET owner_email = (
+        SELECT p.email FROM passengers p WHERE p.id = bookings.passenger_id
+      )
+      WHERE owner_email = '' AND passenger_id IS NOT NULL
+    `);
   }
 }
 
