@@ -5,11 +5,15 @@
     return localStorage.getItem(JWT_KEY);
   }
 
+  function _decodePayload(token) {
+    const b64 = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+    return JSON.parse(atob(b64));
+  }
+
   function isTokenValid(token) {
     if (!token) return false;
     try {
-      const payload = JSON.parse(atob(token.split('.')[1]));
-      return payload.exp * 1000 > Date.now();
+      return _decodePayload(token).exp * 1000 > Date.now();
     } catch {
       return false;
     }
@@ -25,7 +29,7 @@
     const token = getToken();
     if (!token) return null;
     try {
-      return JSON.parse(atob(token.split('.')[1])).role || null;
+      return _decodePayload(token).role || null;
     } catch { return null; }
   }
 
@@ -33,7 +37,7 @@
     const token = getToken();
     if (!token) return null;
     try {
-      return JSON.parse(atob(token.split('.')[1])).email || null;
+      return _decodePayload(token).email || null;
     } catch { return null; }
   }
 

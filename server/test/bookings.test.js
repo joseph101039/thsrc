@@ -431,3 +431,25 @@ test('admin 可以刪除他人的訂票', async () => {
     await new Promise(r => server.close(r));
   }
 });
+
+test('POST /v1/bookings/:id/refund：user 退票他人訂票應回傳 403', async () => {
+  seedUser('owner4@example.com'); seedUser('other4@example.com');
+  const server = http.createServer(app);
+  await new Promise(r => server.listen(0, r));
+  try {
+    const ownerToken = makeTokenFor('owner4@example.com');
+    const otherToken = makeTokenFor('other4@example.com');
+
+    const createRes = await request(server, 'POST', '/v1/bookings', BOOKING_FIXTURE, { Authorization: `Bearer ${ownerToken}` });
+    const id = createRes.body.id;
+
+    const refundRes = await request(server, 'POST', `/v1/bookings/${id}/refund`, null, { Authorization: `Bearer ${otherToken}` });
+    assert.strictEqual(refundRes.status, 403);
+
+    // 清理
+    await request(server, 'POST', `/v1/bookings/${id}/cancel`, null, { Authorization: `Bearer ${ownerToken}` });
+    await request(server, 'DELETE', `/v1/bookings/${id}`, null, { Authorization: `Bearer ${ownerToken}` });
+  } finally {
+    await new Promise(r => server.close(r));
+  }
+});

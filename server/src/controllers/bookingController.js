@@ -202,7 +202,7 @@ function refundBooking(req, res) {
     res.status(202).json({ success: true });
   } catch (err) {
     console.error('refundBooking error:', err.message);
-    res.status(500).json({ error: err.message });
+    res.status(err.status || 500).json({ error: err.message });
   }
 }
 

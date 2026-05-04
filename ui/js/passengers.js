@@ -4,10 +4,9 @@ const TYPE_LABEL = {
 
 const ID_NUMBER_RE = /^[A-Z]\d{9}$/;
 
+let _passengerCache = {};
+
 function passengerCard(p, myEmail) {
-  const name      = p.name.replace(/'/g, "\\'");
-  const idNumber  = p.idNumber.replace(/'/g, "\\'");
-  const email     = p.email.replace(/'/g, "\\'");
   const displayId = maskId(p.idNumber, p.email, myEmail);
   return `
     <div class="card" id="p-card-${p.id}">
@@ -20,9 +19,9 @@ function passengerCard(p, myEmail) {
       </div>
       <div class="card-actions">
         <button class="btn btn-ghost" style="font-size:13px;padding:8px 12px"
-          onclick="editPassenger('${p.id}','${name}','${idNumber}','${p.type}','${email}')">編輯</button>
+          onclick="editPassenger('${p.id}')">編輯</button>
         <button class="btn btn-danger" style="font-size:13px;padding:8px 12px"
-          onclick="deletePassenger('${p.id}','${name}')">刪除</button>
+          onclick="deletePassenger('${p.id}')">刪除</button>
       </div>
     </div>
   `;
@@ -33,6 +32,8 @@ async function loadPassengers() {
   const myEmail = window.__auth.getEmail();
   try {
     const { passengers } = await api.getPassengers();
+    _passengerCache = {};
+    (passengers || []).forEach(p => { _passengerCache[p.id] = p; });
     el.innerHTML = passengers.length
       ? passengers.map(p => passengerCard(p, myEmail)).join('')
       : '<div class="alert alert-info" style="margin-bottom:12px">尚無乘客資料，請新增。</div>';
@@ -41,17 +42,21 @@ async function loadPassengers() {
   }
 }
 
-function editPassenger(id, name, idNumber, type, email) {
-  document.getElementById('edit-id').value = id;
-  document.getElementById('p-name').value = name;
-  document.getElementById('p-id-number').value = idNumber;
-  document.getElementById('p-type').value = type;
-  document.getElementById('p-email').value = email;
+function editPassenger(id) {
+  const p = _passengerCache[id];
+  if (!p) return;
+  document.getElementById('edit-id').value = p.id;
+  document.getElementById('p-name').value = p.name;
+  document.getElementById('p-id-number').value = p.idNumber;
+  document.getElementById('p-type').value = p.type;
+  document.getElementById('p-email').value = p.email;
   document.getElementById('form-title').textContent = '編輯乘客';
   document.getElementById('passenger-form-card').scrollIntoView({ behavior: 'smooth' });
 }
 
-async function deletePassenger(id, name) {
+async function deletePassenger(id) {
+  const p = _passengerCache[id];
+  const name = p ? p.name : id;
   if (!confirm(`確定刪除「${name}」？`)) return;
   try {
     await api.deletePassenger(id);
