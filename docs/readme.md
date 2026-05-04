@@ -311,3 +311,36 @@
 | refunding | — | — | — |
 | refunded | — | — | ✅ |
 | refund_failed | — | ✅ (重試) | ✅ |
+
+---
+
+## Production Logs（VM 觀察指令）
+
+確認 container 名稱
+```bash
+gcloud compute ssh instance-20260427-141455 --zone=us-west1-b --project=sincere-office-494609-m3 --command="docker ps"
+```
+
+**Server logs（即時 follow**
+
+```bash
+gcloud compute ssh instance-20260427-141455 --zone=us-west1-b --project=sincere-office-494609-m3 --command="docker logs joseph-server-1 --tail=50 -f"
+```
+
+ Server logs（最近 100 行，不 follow）
+```bash
+gcloud compute ssh instance-20260427-141455 --zone=us-west1-b --project=sincere-office-494609-m3 --command="docker logs joseph-server-1 --tail=100"
+```
+
+Scheduler logs
+```bash
+gcloud compute ssh instance-20260427-141455 --zone=us-west1-b --project=sincere-office-494609-m3 --command="docker logs thsrc-scheduler-1 --tail=50"
+```
+
+---
+
+### Captcha Solver
+
+- **Live API:** `https://api.joseph101039.uk/` (also `http://35.212.154.47:8080`)
+- **Integration:** `server/src/config.js` → `CAPTCHA_API_URL`; `bookingEngineService.js` → POST `/solve`
+- **Source:** `captcha/` — see `captcha/CLAUDE.md` for full documentation

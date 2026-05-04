@@ -18,36 +18,61 @@ Follow [CLAUDE.md](~/.claude/CLAUDE.md) workflow for all development. This proje
 - Feature: `git checkout -b feat-<name>`
 - Bug fix: `git checkout -b fix-<name>`
 
-**Stages 1–4**: same as global (Brainstorm → Plan → Implement → Test)
-- 本專案大多是 server 內部小改動，除非涉及 auth/payment/external API，**跳過 Brainstorm + Plan 直接 Stage 3**
+**Stages 1–3**: same as global (Brainstorm → Plan → Implement)
+- For server-internal changes not involving auth/payment/external API: skip Brainstorm + Plan, start at Stage 3
+
+**Stage 4 — Testing**:
+
+```bash
+# Unit tests (no network required)
+cd server && npm test
+
+# Integration tests (requires Taiwan IP to reach THSRC website)
+cd server && RUN_NETWORK_TESTS=1 npm test
+
+# Local server
+cd server && node --experimental-sqlite src/api.js
+curl -X POST http://localhost:8081/ -H 'Content-Type: application/json' \
+  -d '{"action":"getPassengers"}'
+
+# Frontend: open http://localhost:8082 in browser after docker-compose up -d
+```
 
 **Stage 5 — Review**: Run `/requesting-copilot-claude-review`.
 
 **Stage 6 — Commit**: `/commit-commands:commit` with descriptive message
 
 **Stage 7 — Local Docker Validation**:
+
 ```bash
-docker-compose up --build -d   # ui:8082, captcha:8080, server:8081, scheduler
+docker-compose up -d --build
 ```
-`ui/serve.js` injects `API_URL` at request time. Requires `.env.local` with `GMAIL_USER` + `GMAIL_APP_PASSWORD`.
+
+`ui` uses bind mount (`./ui:/app`); changes to HTML/CSS/JS are reflected on browser refresh with no container restart. Only changes to `serve.js` itself require `docker-compose restart ui`. After switching branches, `docker-compose restart` is sufficient — no rebuild needed. Ask the user to verify the changes before proceeding.
 
 **Stage 8 — PR**: ask "Open a PR now?" → `/pr`
 
 **Stage 9 — Production Deploy** *(after PR approved and merged to main)*:
 
 ```bash
-# 推送主分支
-git push origin main
-
-# 推送前端到 thsrc-booking（GitHub Pages 自動重新部署）
-git subtree push --prefix=ui ui main
-
-# 後端 Docker image（VM cron 每 5 分鐘自動 pull）
+# 1. Backend Docker image (VM watchtower auto-pulls every 5 minutes)
 DOCKERHUB_USER=joseph50804 bash server/deploy-server.sh
 
-# 如需更新 VM 環境變數
+# 2. Captcha solver image (only if solver needs updating)
+DOCKERHUB_USER=joseph50804 ./captcha/apiserver/deploy-gce.sh
+
+# 3. Frontend (GitHub Pages auto-redeploys)
+git subtree push --prefix=ui ui main
+# If subtree history has diverged (rejected), use:
+git subtree split --prefix=ui --branch ui-deploy
+git push ui ui-deploy:main --force
+
+# 4. Update VM env vars (if needed)
 gcloud compute ssh instance-20260427-141455 --zone=us-west1-b --project=sincere-office-494609-m3 --command="echo 'KEY=VALUE' >> ~/.env"
 gcloud compute ssh instance-20260427-141455 --zone=us-west1-b --project=sincere-office-494609-m3 --command="cd ~ && docker compose up -d server scheduler"
+
+# Health check
+curl http://35.212.154.47:8081/
 ```
 
 ## Architecture
@@ -88,7 +113,7 @@ server/                — Node.js/Express backend + job scheduler; deployed to 
   Dockerfile            — builds linux/amd64 image; includes --experimental-sqlite flag in CMD
 captcha/               — CRNN+CTC solver; deployed separately; see captcha/CLAUDE.md for details
 docker-compose.yml     — orchestrates: captcha (8080), server (8081), scheduler; defines shared db-data volume
-.env.local             — (git-ignored) local overrides: GMAIL_USER, GMAIL_APP_PASSWORD
+.env.local             — (git-ignored) local overrides for docker-compose.override.yml (no required variables currently)
 ```
 
 **VM:** GCE e2-micro `instance-20260427-141455`, us-west1-b, IP `35.212.154.47`, GCP project `sincere-office-494609-m3` (free tier, 720 hours/month)
@@ -103,7 +128,7 @@ docker-compose.yml     — orchestrates: captcha (8080), server (8081), schedule
 
 **Hard-coded server URL:** `ui/js/api.js` has `https://api.joseph101039.uk` hard-coded. Named tunnel is stable across VM reboots. Only needs updating if the tunnel is recreated.
 
-**CAPTCHA auto-solve:** `booking_engine.js` POSTs base64 image to `CONFIG.CAPTCHA_API_URL + '/solve'` (`http://35.212.154.47:8080`). If the API fails or returns wrong answer, booking falls into `handleRetry`.
+**CAPTCHA auto-solve:** `bookingEngineService.js` POSTs base64 image to `CONFIG.CAPTCHA_API_URL + '/solve'` (`http://35.212.154.47:8080`). If the API fails or returns wrong answer, booking falls into `handleRetry`.
 
 **SQLite volume:** Data persists in Docker volume `db-data` mounted at `/app/data`. Both `server` and `scheduler` containers share the same volume.
 
@@ -113,68 +138,13 @@ docker-compose.yml     — orchestrates: captcha (8080), server (8081), schedule
 - Use async/await for all asynchronous operations (database, HTTP requests, etc.)
 - Centralize configuration in `config.js`
 - Use Express middleware for common concerns (e.g. JSON parsing, error handling)
-- controllers, services, repositories, models 分層
+- Layered architecture: controllers → services → repositories → models
 - Error handling: API responses should include clear error messages and status codes. Log errors to the console for debugging.
-- Use environment variables for sensitive data (e.g. Gmail credentials) and configuration that may differ between local and production environments.
-
-## Testing
-
-```bash
-# 邏輯單元測試（不需要網路，本機可跑）
-cd server && npm test
-
-# 網路整合測試（需要台灣 IP 才能連高鐵網站）
-cd server && RUN_NETWORK_TESTS=1 npm test
-
-# Health check
-curl http://35.212.154.47:8081/
-
-# Local server
-cd server && node --experimental-sqlite src/api.js
-curl -X POST http://localhost:8081/ -H 'Content-Type: application/json' \
-  -d '{"action":"getPassengers"}'
-```
-
-## 高鐵網站的 WAF 防護
-
-`irs.thsrc.com.tw` 使用 Akamai WAF，需要完整的 Chrome browser headers 才能連線。
-`thsrc.js` 已加入 `BROWSER_HEADERS` 常數（User-Agent、sec-ch-ua、Sec-Fetch-*、**Connection: keep-alive** 等），node-fetch 即可正常連線，不需要 Playwright。
-
-**必要 header：** `Connection: keep-alive` 是關鍵，缺少此 header 連線會 timeout（Akamai 不回應）。
-
-**必要 cookie：** `thsrcInit()` 初始連線時，Akamai 會在 `Set-Cookie` 回傳多組防護 cookie（`_abck`、`bm_sz`、`bm_sv`、`ak_bmsc`、`TS01*`、`IRS-SESSION`、`THSRC-IRS` 等）。後續所有請求必須帶**完整 cookie jar**，只帶 `JSESSIONID` 會被 WAF 攔截（回傳 HTML 而非圖片）。
-
-### 驗證高鐵連線是否正常（用 curl）
-
-```bash
-curl --location 'https://irs.thsrc.com.tw/IMINT/' \
-  --header 'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7' \
-  --header 'Accept-Language: zh-TW,zh;q=0.9' \
-  --header 'Connection: keep-alive' \
-  --header 'Sec-Fetch-Dest: document' \
-  --header 'Sec-Fetch-Mode: navigate' \
-  --header 'Sec-Fetch-Site: none' \
-  --header 'Sec-Fetch-User: ?1' \
-  --header 'Upgrade-Insecure-Requests: 1' \
-  --header 'User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36' \
-  --header 'sec-ch-ua: "Google Chrome";v="147", "Not.A/Brand";v="8", "Chromium";v="147"' \
-  --header 'sec-ch-ua-mobile: ?0' \
-  --header 'sec-ch-ua-platform: "macOS"'
-```
-
-成功回應會包含 `BookingS1Form` 表單與驗證碼 `<img src="/IMINT/?wicket:interface=...passCode...">` 。
-
-## Captcha Solver (`captcha/`)
-
-The `captcha/` directory is part of this monorepo. See `captcha/CLAUDE.md` for full documentation.
-
-- **Live API:**  `https://api.joseph101039.uk/` (also http://35.212.154.47:8080)
-- **Deploy:** `DOCKERHUB_USER=joseph50804 ./captcha/apiserver/deploy-gce.sh`
-- **Integration:** `server/src/config.js` → `CAPTCHA_API_URL`; `server/src/booking_engine.js` → POST `/solve`
+- Use environment variables for configuration that differs between local and production environments.
 
 ## Code Style
 
 - All user-facing strings and comments are in Traditional Chinese (繁體中文)
 - Node.js uses CommonJS (`require`/`module.exports`)
 - No linter or formatter configured
-- each API should have error console logs 
+- Each API handler should have error console logs
