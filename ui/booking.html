@@ -33,31 +33,101 @@
       </div>
     </div>
 
-    <div class="form-row">
-      <div class="form-group">
-        <label>乘車日期</label>
-        <input type="date" id="b-date">
-      </div>
-      <div class="form-group">
-        <label>期望時間</label>
-        <input type="time" id="b-desired-time" value="09:00">
+    <div class="form-group">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+        <label style="margin:0">搜尋條件</label>
+        <div id="search-mode-toggle" style="display:flex;border:1px solid #4A90E2;border-radius:6px;overflow:hidden;font-size:13px">
+          <button id="btn-mode-time" style="padding:4px 14px;background:#4A90E2;color:#fff;border:none;cursor:pointer" onclick="setSearchMode('time')">時間</button>
+          <button id="btn-mode-train" style="padding:4px 14px;background:#fff;color:#4A90E2;border:none;cursor:pointer" onclick="setSearchMode('train')">車次</button>
+        </div>
       </div>
     </div>
 
-    <div class="form-row">
-      <div class="form-group">
-        <label>允許最早</label>
-        <input type="time" id="b-earliest">
+    <div id="time-fields">
+      <div class="form-row">
+        <div class="form-group">
+          <label>乘車日期</label>
+          <input type="date" id="b-date">
+        </div>
+        <div class="form-group">
+          <label>期望時間</label>
+          <input type="time" id="b-desired-time" value="09:00">
+        </div>
       </div>
-      <div class="form-group">
-        <label>允許最晚</label>
-        <input type="time" id="b-latest">
+      <div class="form-row">
+        <div class="form-group">
+          <label>允許最早</label>
+          <input type="time" id="b-earliest">
+        </div>
+        <div class="form-group">
+          <label>允許最晚</label>
+          <input type="time" id="b-latest">
+        </div>
+      </div>
+    </div>
+
+    <div id="train-fields" style="display:none">
+      <div class="form-row">
+        <div class="form-group">
+          <label>乘車日期</label>
+          <input type="date" id="b-date-train">
+        </div>
+        <div class="form-group">
+          <label>車次號碼</label>
+          <input type="text" id="b-train-no-target" placeholder="例：0106" maxlength="10">
+        </div>
       </div>
     </div>
 
     <div class="form-group">
       <label>最大重試次數</label>
       <input type="number" id="b-max-retries" value="10" min="1" max="50">
+    </div>
+
+    <div class="form-group">
+      <label>票種</label>
+      <div id="ticket-types" style="display:flex;flex-direction:column;gap:8px">
+        <div style="display:flex;align-items:center;justify-content:space-between">
+          <span>全票</span>
+          <div style="display:flex;align-items:center;gap:8px">
+            <button type="button" class="btn btn-ghost" style="padding:2px 12px;font-size:16px" onclick="changeTicket('adult',-1)">−</button>
+            <span id="ticket-adult-val" style="min-width:20px;text-align:center">1</span>
+            <button type="button" class="btn btn-ghost" style="padding:2px 12px;font-size:16px" onclick="changeTicket('adult',1)">＋</button>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between">
+          <span>孩童票</span>
+          <div style="display:flex;align-items:center;gap:8px">
+            <button type="button" class="btn btn-ghost" style="padding:2px 12px;font-size:16px" onclick="changeTicket('child',-1)">−</button>
+            <span id="ticket-child-val" style="min-width:20px;text-align:center">0</span>
+            <button type="button" class="btn btn-ghost" style="padding:2px 12px;font-size:16px" onclick="changeTicket('child',1)">＋</button>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between">
+          <span>愛心票</span>
+          <div style="display:flex;align-items:center;gap:8px">
+            <button type="button" class="btn btn-ghost" style="padding:2px 12px;font-size:16px" onclick="changeTicket('disabled',-1)">−</button>
+            <span id="ticket-disabled-val" style="min-width:20px;text-align:center">0</span>
+            <button type="button" class="btn btn-ghost" style="padding:2px 12px;font-size:16px" onclick="changeTicket('disabled',1)">＋</button>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between">
+          <span>敬老票</span>
+          <div style="display:flex;align-items:center;gap:8px">
+            <button type="button" class="btn btn-ghost" style="padding:2px 12px;font-size:16px" onclick="changeTicket('senior',-1)">−</button>
+            <span id="ticket-senior-val" style="min-width:20px;text-align:center">0</span>
+            <button type="button" class="btn btn-ghost" style="padding:2px 12px;font-size:16px" onclick="changeTicket('senior',1)">＋</button>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between">
+          <span>大學生票</span>
+          <div style="display:flex;align-items:center;gap:8px">
+            <button type="button" class="btn btn-ghost" style="padding:2px 12px;font-size:16px" onclick="changeTicket('student',-1)">−</button>
+            <span id="ticket-student-val" style="min-width:20px;text-align:center">0</span>
+            <button type="button" class="btn btn-ghost" style="padding:2px 12px;font-size:16px" onclick="changeTicket('student',1)">＋</button>
+          </div>
+        </div>
+      </div>
     </div>
 
     <div class="form-group">
@@ -106,10 +176,23 @@
       <span class="nav-icon">👤</span>
       <span>乘客設定</span>
     </a>
+    <a href="admin.html" class="nav-item" id="nav-admin" hidden>
+      <span class="nav-icon">👥</span>
+      <span>使用者</span>
+    </a>
   </nav>
 
   <script src="js/auth.js"></script>
   <script src="js/api.js"></script>
+  <script src="js/utils.js"></script>
   <script src="js/booking.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', function () {
+      if (window.__auth.getRole() === 'admin') {
+        var el = document.getElementById('nav-admin');
+        if (el) el.hidden = false;
+      }
+    });
+  </script>
 </body>
 </html>

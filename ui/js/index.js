@@ -23,7 +23,7 @@ const STATUS_LABEL = {
   refund_failed: { text: '退票失敗', cls: 'badge-failed'   },
 };
 
-function bookingCard(b) {
+function bookingCard(b, passengerMap, myEmail) {
   const statusKey = b.refundStatus === 'refunding' ? 'refunding'
     : b.refundStatus === 'refunded' ? 'refunded'
     : b.refundStatus === 'refund_failed' ? 'refund_failed'
@@ -38,17 +38,19 @@ function bookingCard(b) {
 
   const canDelete = (b.status === 'success' || b.status === 'failed' || b.status === 'cancelled' || b.refundStatus === 'refund_failed')
     && b.refundStatus !== 'refunding';
-  const deleteBtn = canDelete
+  const isOwner = b.ownerEmail === myEmail;
+  const isAdmin = window.__auth.getRole() === 'admin';
+  const canMutate = isOwner || isAdmin;
+
+  const deleteBtn = canDelete && canMutate
     ? `<button class="btn btn-danger" style="padding:6px 14px;font-size:13px" onclick="event.stopPropagation();deleteBooking('${b.id}')">刪除</button>`
     : '';
-
   const canRefund = b.status === 'success' && (!b.refundStatus || b.refundStatus === 'refund_failed');
-  const refundBtn = canRefund
+  const refundBtn = canRefund && canMutate
     ? `<button class="btn btn-warning" style="padding:6px 14px;font-size:13px;margin-right:6px" onclick="event.stopPropagation();refundBooking('${b.id}')">退票</button>`
     : '';
-
   const canCancel = b.status === 'pending';
-  const cancelBtn = canCancel
+  const cancelBtn = canCancel && canMutate
     ? `<button class="btn btn-secondary" style="padding:6px 14px;font-size:13px;margin-right:6px" onclick="event.stopPropagation();cancelBooking('${b.id}')">取消</button>`
     : '';
 
@@ -60,12 +62,18 @@ function bookingCard(b) {
     ? `<div class="card-sub" style="color:var(--danger)">${escapeHtml(b.refundMessage)}</div>`
     : '';
 
+  const passenger = passengerMap[b.passengerId];
+  const passengerLine = passenger
+    ? `<div class="card-sub">乘客：${escapeHtml(passenger.name)}（${escapeHtml(maskId(passenger.idNumber, passenger.email, myEmail))}）</div>`
+    : '';
+
   return `
     <div class="card" id="booking-${b.id}" style="cursor:pointer" onclick="location.href='booking-detail.html?id=${b.id}'">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">
         <div class="card-title">${b.fromStation} → ${b.toStation}</div>
         <span class="badge ${s.cls}">${s.text}</span>
       </div>
+      ${passengerLine}
       <div class="card-sub">日期：${b.date}　期望：${b.desiredTime}</div>
       <div class="card-sub">允許區間：${b.earliestTime} ~ ${b.latestTime}</div>
       ${scheduledInfo}
@@ -119,8 +127,15 @@ function copyTicketNo(ticketNo) {
 
 async function loadBookings() {
   const el = document.getElementById('bookings-list');
+  const myEmail = window.__auth.getEmail();
   try {
-    const { bookings } = await api.getBookings();
+    const [{ bookings }, { passengers }] = await Promise.all([
+      api.getBookings(),
+      api.getPassengers(),
+    ]);
+    const passengerMap = {};
+    (passengers || []).forEach(p => { passengerMap[p.id] = p; });
+
     if (!bookings || bookings.length === 0) {
       el.innerHTML = `
         <div class="empty-state">
@@ -130,7 +145,7 @@ async function loadBookings() {
         </div>`;
       return;
     }
-    el.innerHTML = bookings.map(bookingCard).join('');
+    el.innerHTML = bookings.map(b => bookingCard(b, passengerMap, myEmail)).join('');
   } catch (err) {
     el.innerHTML = `<div class="alert alert-warning">載入失敗：${err.message}</div>`;
   }

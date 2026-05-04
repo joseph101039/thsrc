@@ -103,3 +103,38 @@ test('DELETE /v1/passengers/:id：刪除後不應出現在列表', async () => {
     await new Promise(r => server.close(r));
   }
 });
+
+test('POST /v1/passengers：身分證格式錯誤應回傳 400', async () => {
+  const server = http.createServer(app);
+  await new Promise(r => server.listen(0, r));
+  try {
+    const token = jwt.sign({ email: 'joseph101039@gmail.com', role: 'user' }, 'test-secret', { expiresIn: '1h' });
+    const res = await request(server, 'POST', '/v1/passengers', {
+      name: '測試',
+      idNumber: 'a123456789',
+      type: 'adult',
+      email: 'test@example.com',
+    }, { Authorization: `Bearer ${token}` });
+    assert.strictEqual(res.status, 400);
+  } finally {
+    await new Promise(r => server.close(r));
+  }
+});
+
+test('POST /v1/passengers：身分證格式正確應成功', async () => {
+  const server = http.createServer(app);
+  await new Promise(r => server.listen(0, r));
+  try {
+    const token = jwt.sign({ email: 'joseph101039@gmail.com', role: 'user' }, 'test-secret', { expiresIn: '1h' });
+    const res = await request(server, 'POST', '/v1/passengers', {
+      name: '測試',
+      idNumber: 'A123456789',
+      type: 'adult',
+      email: 'test@example.com',
+    }, { Authorization: `Bearer ${token}` });
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(res.body.success, true);
+  } finally {
+    await new Promise(r => server.close(r));
+  }
+});

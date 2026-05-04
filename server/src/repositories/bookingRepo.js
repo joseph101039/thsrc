@@ -11,18 +11,23 @@ function getById(id) {
   return _toCamel(getDb().prepare('SELECT * FROM bookings WHERE id=?').get(id));
 }
 
-function create({ passengerId, fromStation, toStation, date, desiredTime, earliestTime, latestTime, maxRetries, scheduledAt, retryWaitValue, retryWaitUnit }) {
+function create({ passengerId, fromStation, toStation, date, desiredTime, earliestTime, latestTime, maxRetries, scheduledAt, retryWaitValue, retryWaitUnit, ticketAdult, ticketChild, ticketDisabled, ticketSenior, ticketStudent, searchMode, trainNoTarget, ownerEmail }) {
   const id = uuidv4();
   const now = new Date().toISOString();
   getDb().prepare(`
     INSERT INTO bookings
       (id, passenger_id, from_station, to_station, date, desired_time, earliest_time, latest_time,
        max_retries, scheduled_at, status, retry_count, train_no, ticket_no,
-       retry_wait_value, retry_wait_unit, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', 0, '', '', ?, ?, ?, ?)
+       retry_wait_value, retry_wait_unit,
+       ticket_adult, ticket_child, ticket_disabled, ticket_senior, ticket_student,
+       search_mode, train_no_target, owner_email,
+       created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', 0, '', '', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(id, passengerId, fromStation, toStation, date, desiredTime, earliestTime, latestTime,
          maxRetries ?? 10, scheduledAt ?? null,
          retryWaitValue ?? 2, retryWaitUnit ?? 'minute',
+         ticketAdult ?? 1, ticketChild ?? 0, ticketDisabled ?? 0, ticketSenior ?? 0, ticketStudent ?? 0,
+         searchMode ?? 'time', trainNoTarget ?? null, ownerEmail ?? '',
          now, now);
   return { success: true, id };
 }

@@ -1572,9 +1572,11 @@ Expected: all tests pass, no failures.
 - [ ] **Step 2: Spot-check Docker**
 
 ```bash
+# Must run from main repo root (not worktree directory) to avoid port/network conflicts
+cd /Users/joseph/projects/nodejs/thsrc
 docker-compose up --build -d
 sleep 5
-curl -s http://localhost:8081/ 
+curl -s http://localhost:8081/
 ```
 
 Expected: server health OK.

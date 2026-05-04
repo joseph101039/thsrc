@@ -96,11 +96,14 @@ async function thsrcInit() {
   const captchaUrlMatch = html.match(/src="(\/IMINT\/[^"]+passCode[^"]+)"/);
   const captchaUrl = captchaUrlMatch ? THSRC_BASE + captchaUrlMatch[1] : null;
 
-  // bookingMethod radio value 是 Wicket 動態生成的 component ID（search-by-time 那個）
+  // bookingMethod radio value 是 Wicket 動態生成的 component ID
   const bookingMethodMatch = html.match(/data-target="search-by-time"\s+name="bookingMethod"[^>]+value="([^"]+)"/);
   const bookingMethod = bookingMethodMatch ? bookingMethodMatch[1] : 'radio31';
 
-  return { sessionId, cookieJar, formAction, captchaUrl, bookingMethod };
+  const bookingMethodTrainMatch = html.match(/data-target="search-by-trainNo"\s+name="bookingMethod"[^>]+value="([^"]+)"/);
+  const bookingMethodTrain = bookingMethodTrainMatch ? bookingMethodTrainMatch[1] : 'radio33';
+
+  return { sessionId, cookieJar, formAction, captchaUrl, bookingMethod, bookingMethodTrain };
 }
 
 async function thsrcGetCaptcha(cookieJar, captchaUrl) {
@@ -124,30 +127,39 @@ async function thsrcGetCaptcha(cookieJar, captchaUrl) {
 
 // captcha is required — the train query form includes homeCaptcha:securityCode
 // POST 查詢班次也會先回 302（帶新 cookie），需兩段式請求才能拿到班次頁面
-async function thsrcQueryTrains(cookieJar, formAction, { fromStation, toStation, date, earliestTime, latestTime, captcha, bookingMethod }) {
+async function thsrcQueryTrains(cookieJar, formAction, { fromStation, toStation, date, earliestTime, latestTime, captcha, bookingMethod, bookingMethodTrain, searchMode, trainNoTarget, ticketAdult, ticketChild, ticketDisabled, ticketSenior, ticketStudent }) {
   const dateFormatted = date.replace(/-/g, '/'); // YYYY-MM-DD → YYYY/MM/DD
   const timeTableValue = TIME_TABLE_VALUES[earliestTime] || earliestTime;
+
+  const adultCount    = ticketAdult    ?? 1;
+  const childCount    = ticketChild    ?? 0;
+  const disabledCount = ticketDisabled ?? 0;
+  const seniorCount   = ticketSenior   ?? 0;
+  const studentCount  = ticketStudent  ?? 0;
+
+  const effectiveSearchMode = searchMode ?? 'time';
+  const effectiveBookingMethod = effectiveSearchMode === 'train' ? (bookingMethodTrain || 'radio33') : (bookingMethod || 'radio31');
 
   const payload = new URLSearchParams({
     'BookingS1Form:hf:0': '',
     'trainCon:trainRadioGroup': '0',
     'tripCon:typesoftrip': '0',
     'seatCon:seatRadioGroup': '0',
-    bookingMethod: bookingMethod || 'radio31',
+    bookingMethod: effectiveBookingMethod,
     selectStartStation: CONFIG.STATION_CODES[fromStation],
     selectDestinationStation: CONFIG.STATION_CODES[toStation],
     toTimeInputField: dateFormatted,
     backTimeInputField: dateFormatted,
-    toTimeTable: timeTableValue,
-    toTrainIDInputField: '',
+    toTimeTable: effectiveSearchMode === 'time' ? timeTableValue : '',
+    toTrainIDInputField: effectiveSearchMode === 'train' ? (trainNoTarget || '') : '',
     backTimeTable: '',
     backTrainIDInputField: '',
-    'ticketPanel:rows:0:ticketAmount': '1F',
-    'ticketPanel:rows:1:ticketAmount': '0H',
-    'ticketPanel:rows:2:ticketAmount': '0W',
-    'ticketPanel:rows:3:ticketAmount': '0E',
-    'ticketPanel:rows:4:ticketAmount': '0P',
-    ticketTypeNum: '1F,0H,0W,0E,0P',
+    'ticketPanel:rows:0:ticketAmount': `${adultCount}F`,
+    'ticketPanel:rows:1:ticketAmount': `${childCount}H`,
+    'ticketPanel:rows:2:ticketAmount': `${disabledCount}W`,
+    'ticketPanel:rows:3:ticketAmount': `${seniorCount}E`,
+    'ticketPanel:rows:4:ticketAmount': `${studentCount}P`,
+    ticketTypeNum: `${adultCount}F,${childCount}H,${disabledCount}W,${seniorCount}E,${studentCount}P`,
     'homeCaptcha:securityCode': captcha || '',
     SubmitButton: '開始查詢',
     portalTag: 'false',
@@ -211,12 +223,16 @@ async function thsrcQueryTrains(cookieJar, formAction, { fromStation, toStation,
   });
   const html = await res2.text();
 
-  // Extract the S2 form action for subsequent booking submission
+  // 車次模式直接跳到 S3（跳過 S2 選車），時間模式回傳 S2
   const s2ActionMatch = html.match(/action="(\/IMINT\/[^"]+BookingS2Form[^"]+)"/);
-  const s2FormAction = s2ActionMatch ? THSRC_BASE + s2ActionMatch[1] : null;
+  const s3DirectMatch = html.match(/action="(\/IMINT\/[^"]+BookingS3Form[^"]+)"/);
+  const s2FormAction = s2ActionMatch
+    ? THSRC_BASE + s2ActionMatch[1]
+    : (s3DirectMatch ? THSRC_BASE + s3DirectMatch[1] : null);
+  const isDirectS3 = !s2ActionMatch && !!s3DirectMatch;
 
   const trains = parseTrainOptions(html, earliestTime, latestTime);
-  return { trains, s2FormAction, cookieJar: updatedCookieJar };
+  return { trains, s2FormAction, isDirectS3, cookieJar: updatedCookieJar };
 }
 
 function parseTrainOptions(html, earliestTime, latestTime) {
@@ -258,8 +274,9 @@ function _timeToMinutes(hhmm) {
 }
 
 // S2 → S3（乘客資料）→ S4（付款頁，含訂位代號）
+// isDirectS3=true 時 s2FormAction 實際為 S3 form action，直接跳 S2
 // passenger: { idNumber, phone, email }
-async function thsrcSubmitBooking(cookieJar, s2FormAction, { trainNo, captcha, passenger }) {
+async function thsrcSubmitBooking(cookieJar, s2FormAction, { trainNo, captcha, passenger, ticketAdult, ticketChild, ticketDisabled, ticketSenior, ticketStudent, isDirectS3 }) {
   const POST_HEADERS = (jar) => ({
     ...BROWSER_HEADERS,
     'Content-Type': 'application/x-www-form-urlencoded',
@@ -273,26 +290,54 @@ async function thsrcSubmitBooking(cookieJar, s2FormAction, { trainNo, captcha, p
     'Sec-Fetch-User': '?1',
   });
 
-  // S2 POST → 302 → GET S3
-  const s2Payload = new URLSearchParams({
-    'BookingS2Form:hf:0': '',
-    'TrainQueryDataViewPanel:TrainGroup': trainNo,
-    'ticketPanel:rows:0:ticketAmount': '1F',
-    'ticketPanel:rows:1:ticketAmount': '0H',
-    'ticketPanel:rows:2:ticketAmount': '0W',
-    'ticketPanel:rows:3:ticketAmount': '0E',
-    'ticketPanel:rows:4:ticketAmount': '0P',
-    toPayment: '確認訂位',
-    'homeCaptcha:securityCode': captcha,
-  });
+  const adultCount    = ticketAdult    ?? 1;
+  const childCount    = ticketChild    ?? 0;
+  const disabledCount = ticketDisabled ?? 0;
+  const seniorCount   = ticketSenior   ?? 0;
+  const studentCount  = ticketStudent  ?? 0;
 
-  const { html: s3Html, cookieJar: jar3, s3FormAction } = await _postAndFollow(
-    s2FormAction, cookieJar, s2Payload.toString(), POST_HEADERS, 'BookingS3Form'
-  );
-  console.log('  [5/5] S2→S3: s3FormAction=', s3FormAction ? s3FormAction.slice(0, 60) + '...' : 'null', 'html len=', s3Html.length);
+  let s3Html, jar3, s3FormAction;
+
+  if (isDirectS3) {
+    // 車次模式：S1 已直接回傳 S3，s2FormAction 實際上是 S3 URL
+    const res = await fetch(s2FormAction, {
+      headers: { ...BROWSER_HEADERS, 'Cookie': cookieJar, 'Sec-Fetch-Dest': 'document', 'Sec-Fetch-Mode': 'navigate', 'Sec-Fetch-Site': 'same-origin' },
+      redirect: 'follow',
+    });
+    s3Html = await res.text();
+    // 合併 GET 回傳的 Set-Cookie（Akamai 可能輪換 cookie）
+    const newCookies = res.headers.raw()['set-cookie'] || [];
+    const cookieMap = new Map();
+    for (const c of [...cookieJar.split('; ').map(kv => kv + '; '), ...newCookies]) {
+      const kv = c.split(';')[0].trim();
+      const key = kv.split('=')[0];
+      if (key) cookieMap.set(key, kv);
+    }
+    jar3 = Array.from(cookieMap.values()).join('; ');
+    const m = s3Html.match(/action="(\/IMINT\/[^"]+BookingS3Form[^"]+)"/);
+    s3FormAction = m ? THSRC_BASE + m[1] : null;
+    console.log(`  [5/5] directS3: s3FormAction=${s3FormAction ? s3FormAction.slice(0, 60) + '...' : 'null'} html len=${s3Html.length}`);
+  } else {
+    // S2 POST → 302 → GET S3
+    const s2Payload = new URLSearchParams({
+      'BookingS2Form:hf:0': '',
+      'TrainQueryDataViewPanel:TrainGroup': trainNo,
+      'ticketPanel:rows:0:ticketAmount': `${adultCount}F`,
+      'ticketPanel:rows:1:ticketAmount': `${childCount}H`,
+      'ticketPanel:rows:2:ticketAmount': `${disabledCount}W`,
+      'ticketPanel:rows:3:ticketAmount': `${seniorCount}E`,
+      'ticketPanel:rows:4:ticketAmount': `${studentCount}P`,
+      toPayment: '確認訂位',
+      'homeCaptcha:securityCode': captcha,
+    });
+
+    ({ html: s3Html, cookieJar: jar3, s3FormAction } = await _postAndFollow(
+      s2FormAction, cookieJar, s2Payload.toString(), POST_HEADERS, 'BookingS3Form'
+    ));
+    console.log(`  [5/5] S2→S3: s3FormAction=${s3FormAction ? s3FormAction.slice(0, 60) + '...' : 'null'} html len=${s3Html.length}`);
+  }
 
   if (!s3FormAction) {
-    console.log('  [5/5] S3 not found, parsing S2 result directly');
     return parseBookingResult(s3Html);
   }
 
@@ -300,11 +345,12 @@ async function thsrcSubmitBooking(cookieJar, s2FormAction, { trainNo, captcha, p
   const memberRadioMatch = s3Html.match(/<input[^>]+memberSystemRadioGroup[^>]+checked[^>]+value="([^"]+)"/);
   const memberRadioValue = memberRadioMatch ? memberRadioMatch[1]
     : (s3Html.match(/<input[^>]+memberSystemRadioGroup[^>]+value="([^"]+)"/)?.[1] || 'radio45');
-  console.log('  [5/5] memberRadioValue=', memberRadioValue);
+  const s3HfMatch = s3Html.match(/name="(BookingS3Form[^"]*hf:0)"/);
 
   // S3 POST → 302 → GET S4
+  const s3FormKey = s3HfMatch?.[1] || 'BookingS3FormSP:hf:0';
   const s3Payload = new URLSearchParams({
-    'BookingS3FormSP:hf:0': '',
+    [s3FormKey]: '',
     idInputRadio: '0',  // 0 = 身份證
     dummyId: passenger.idNumber,
     dummyPhone: passenger.phone || '',
@@ -314,10 +360,15 @@ async function thsrcSubmitBooking(cookieJar, s2FormAction, { trainNo, captcha, p
     SubmitButton: '確定',
   });
 
+  // 早鳥票/多乘客時，每個 passengerDataIdNumber slot 都需要填身分證
+  const passengerSlotRe = /name="(TicketPassengerInfoInputPanel:passengerDataView:\d+:passengerDataView2:passengerDataIdNumber)"/g;
+  let slotMatch;
+  while ((slotMatch = passengerSlotRe.exec(s3Html)) !== null) {
+    s3Payload.set(slotMatch[1], passenger.idNumber);
+  }
   const { html: s4Html } = await _postAndFollow(
     s3FormAction, jar3, s3Payload.toString(), POST_HEADERS, null
   );
-  console.log('  [5/5] S3→S4: html len=', s4Html.length, 'has 訂位代號=', s4Html.includes('訂位代號'));
 
   return parseBookingResult(s4Html);
 }
