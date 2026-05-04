@@ -124,30 +124,39 @@ async function thsrcGetCaptcha(cookieJar, captchaUrl) {
 
 // captcha is required — the train query form includes homeCaptcha:securityCode
 // POST 查詢班次也會先回 302（帶新 cookie），需兩段式請求才能拿到班次頁面
-async function thsrcQueryTrains(cookieJar, formAction, { fromStation, toStation, date, earliestTime, latestTime, captcha, bookingMethod }) {
+async function thsrcQueryTrains(cookieJar, formAction, { fromStation, toStation, date, earliestTime, latestTime, captcha, bookingMethod, searchMode, trainNoTarget, ticketAdult, ticketChild, ticketDisabled, ticketSenior, ticketStudent }) {
   const dateFormatted = date.replace(/-/g, '/'); // YYYY-MM-DD → YYYY/MM/DD
   const timeTableValue = TIME_TABLE_VALUES[earliestTime] || earliestTime;
+
+  const adultCount    = ticketAdult    ?? 1;
+  const childCount    = ticketChild    ?? 0;
+  const disabledCount = ticketDisabled ?? 0;
+  const seniorCount   = ticketSenior   ?? 0;
+  const studentCount  = ticketStudent  ?? 0;
+
+  const effectiveSearchMode = searchMode ?? 'time';
+  const effectiveBookingMethod = effectiveSearchMode === 'train' ? 'radio32' : (bookingMethod || 'radio31');
 
   const payload = new URLSearchParams({
     'BookingS1Form:hf:0': '',
     'trainCon:trainRadioGroup': '0',
     'tripCon:typesoftrip': '0',
     'seatCon:seatRadioGroup': '0',
-    bookingMethod: bookingMethod || 'radio31',
+    bookingMethod: effectiveBookingMethod,
     selectStartStation: CONFIG.STATION_CODES[fromStation],
     selectDestinationStation: CONFIG.STATION_CODES[toStation],
     toTimeInputField: dateFormatted,
     backTimeInputField: dateFormatted,
-    toTimeTable: timeTableValue,
-    toTrainIDInputField: '',
+    toTimeTable: effectiveSearchMode === 'time' ? timeTableValue : '',
+    toTrainIDInputField: effectiveSearchMode === 'train' ? (trainNoTarget || '') : '',
     backTimeTable: '',
     backTrainIDInputField: '',
-    'ticketPanel:rows:0:ticketAmount': '1F',
-    'ticketPanel:rows:1:ticketAmount': '0H',
-    'ticketPanel:rows:2:ticketAmount': '0W',
-    'ticketPanel:rows:3:ticketAmount': '0E',
-    'ticketPanel:rows:4:ticketAmount': '0P',
-    ticketTypeNum: '1F,0H,0W,0E,0P',
+    'ticketPanel:rows:0:ticketAmount': `${adultCount}F`,
+    'ticketPanel:rows:1:ticketAmount': `${childCount}H`,
+    'ticketPanel:rows:2:ticketAmount': `${disabledCount}W`,
+    'ticketPanel:rows:3:ticketAmount': `${seniorCount}E`,
+    'ticketPanel:rows:4:ticketAmount': `${studentCount}P`,
+    ticketTypeNum: `${adultCount}F,${childCount}H,${disabledCount}W,${seniorCount}E,${studentCount}P`,
     'homeCaptcha:securityCode': captcha || '',
     SubmitButton: '開始查詢',
     portalTag: 'false',
@@ -259,7 +268,7 @@ function _timeToMinutes(hhmm) {
 
 // S2 → S3（乘客資料）→ S4（付款頁，含訂位代號）
 // passenger: { idNumber, phone, email }
-async function thsrcSubmitBooking(cookieJar, s2FormAction, { trainNo, captcha, passenger }) {
+async function thsrcSubmitBooking(cookieJar, s2FormAction, { trainNo, captcha, passenger, ticketAdult, ticketChild, ticketDisabled, ticketSenior, ticketStudent }) {
   const POST_HEADERS = (jar) => ({
     ...BROWSER_HEADERS,
     'Content-Type': 'application/x-www-form-urlencoded',
@@ -273,15 +282,21 @@ async function thsrcSubmitBooking(cookieJar, s2FormAction, { trainNo, captcha, p
     'Sec-Fetch-User': '?1',
   });
 
+  const adultCount    = ticketAdult    ?? 1;
+  const childCount    = ticketChild    ?? 0;
+  const disabledCount = ticketDisabled ?? 0;
+  const seniorCount   = ticketSenior   ?? 0;
+  const studentCount  = ticketStudent  ?? 0;
+
   // S2 POST → 302 → GET S3
   const s2Payload = new URLSearchParams({
     'BookingS2Form:hf:0': '',
     'TrainQueryDataViewPanel:TrainGroup': trainNo,
-    'ticketPanel:rows:0:ticketAmount': '1F',
-    'ticketPanel:rows:1:ticketAmount': '0H',
-    'ticketPanel:rows:2:ticketAmount': '0W',
-    'ticketPanel:rows:3:ticketAmount': '0E',
-    'ticketPanel:rows:4:ticketAmount': '0P',
+    'ticketPanel:rows:0:ticketAmount': `${adultCount}F`,
+    'ticketPanel:rows:1:ticketAmount': `${childCount}H`,
+    'ticketPanel:rows:2:ticketAmount': `${disabledCount}W`,
+    'ticketPanel:rows:3:ticketAmount': `${seniorCount}E`,
+    'ticketPanel:rows:4:ticketAmount': `${studentCount}P`,
     toPayment: '確認訂位',
     'homeCaptcha:securityCode': captcha,
   });

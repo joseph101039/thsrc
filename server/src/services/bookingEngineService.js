@@ -60,6 +60,13 @@ async function _doBooking(bookingId, booking) {
     latestTime: booking.latestTime,
     captcha: captchaAnswer,
     bookingMethod,
+    searchMode: booking.searchMode,
+    trainNoTarget: booking.trainNoTarget,
+    ticketAdult: booking.ticketAdult,
+    ticketChild: booking.ticketChild,
+    ticketDisabled: booking.ticketDisabled,
+    ticketSenior: booking.ticketSenior,
+    ticketStudent: booking.ticketStudent,
   });
   console.log(`  [4/5] done — ${trains.length} trains found, s2FormAction=${s2FormAction ? s2FormAction.slice(0, 60) + '...' : 'null'}`);
   trains.forEach(t => console.log(`    班次 ${t.trainNo} ${t.departTime}→${t.arriveTime} (${t.radioValue})`));
@@ -79,6 +86,11 @@ async function _doBooking(bookingId, booking) {
     trainNo: bestTrain.radioValue,
     captcha: captchaAnswer,
     passenger: { idNumber: passenger.idNumber, phone: passenger.phone || '', email: passenger.email },
+    ticketAdult: booking.ticketAdult,
+    ticketChild: booking.ticketChild,
+    ticketDisabled: booking.ticketDisabled,
+    ticketSenior: booking.ticketSenior,
+    ticketStudent: booking.ticketStudent,
   });
   console.log(`  [5/5] done — success=${result.success} ticketNo=${result.ticketNo} error=${result.error}`);
 
