@@ -138,7 +138,7 @@ async function thsrcQueryTrains(cookieJar, formAction, { fromStation, toStation,
   const studentCount  = ticketStudent  ?? 0;
 
   const effectiveSearchMode = searchMode ?? 'time';
-  const effectiveBookingMethod = effectiveSearchMode === 'train' ? (bookingMethodTrain || 'radio32') : (bookingMethod || 'radio31');
+  const effectiveBookingMethod = effectiveSearchMode === 'train' ? (bookingMethodTrain || 'radio33') : (bookingMethod || 'radio31');
 
   const payload = new URLSearchParams({
     'BookingS1Form:hf:0': '',
@@ -299,15 +299,21 @@ async function thsrcSubmitBooking(cookieJar, s2FormAction, { trainNo, captcha, p
   let s3Html, jar3, s3FormAction;
 
   if (isDirectS3) {
-    // 車次模式：S1 已直接回傳 S3，s2FormAction 實際上是 S3 form action
-    // 需要重新 GET 一次 S3 頁面（因為原始 HTML 在 thsrcQueryTrains 已被讀取，這裡需要重讀）
-    // 實際上 s2FormAction 已經是完整 URL，直接用 cookieJar GET
+    // 車次模式：S1 已直接回傳 S3，s2FormAction 實際上是 S3 URL
     const res = await fetch(s2FormAction, {
       headers: { ...BROWSER_HEADERS, 'Cookie': cookieJar, 'Sec-Fetch-Dest': 'document', 'Sec-Fetch-Mode': 'navigate', 'Sec-Fetch-Site': 'same-origin' },
       redirect: 'follow',
     });
     s3Html = await res.text();
-    jar3 = cookieJar;
+    // 合併 GET 回傳的 Set-Cookie（Akamai 可能輪換 cookie）
+    const newCookies = res.headers.raw()['set-cookie'] || [];
+    const cookieMap = new Map();
+    for (const c of [...cookieJar.split('; ').map(kv => kv + '; '), ...newCookies]) {
+      const kv = c.split(';')[0].trim();
+      const key = kv.split('=')[0];
+      if (key) cookieMap.set(key, kv);
+    }
+    jar3 = Array.from(cookieMap.values()).join('; ');
     const m = s3Html.match(/action="(\/IMINT\/[^"]+BookingS3Form[^"]+)"/);
     s3FormAction = m ? THSRC_BASE + m[1] : null;
     console.log(`  [5/5] directS3: s3FormAction=${s3FormAction ? s3FormAction.slice(0, 60) + '...' : 'null'} html len=${s3Html.length}`);

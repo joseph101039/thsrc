@@ -72,7 +72,7 @@ async function _doBooking(bookingId, booking) {
   console.log(`  [4/5] done — ${trains.length} trains found, isDirectS3=${isDirectS3} s2FormAction=${s2FormAction ? s2FormAction.slice(0, 60) + '...' : 'null'}`);
   trains.forEach(t => console.log(`    班次 ${t.trainNo} ${t.departTime}→${t.arriveTime} (${t.radioValue})`));
 
-  // 차량 모드는 S3 직접 반환 — trains 는 빈 배열이지만 s2FormAction (실제로 S3) 이 있으면 진행
+  // 車次模式：S1 直接回傳 S3 — trains 為空陣列，但 s2FormAction（實為 S3 URL）存在則繼續
   if (!isDirectS3 && trains.length === 0) {
     return handleRetry(booking, '無可用班次');
   }
@@ -80,8 +80,8 @@ async function _doBooking(bookingId, booking) {
     return handleRetry(booking, '無可用班次');
   }
 
-  // 차량 모드: trainNo 는 booking.trainNoTarget, radioValue 는 S3 form 에 불필요 (직접 S3)
-  // 시간 모드: bestTrain 선택
+  // 車次模式：trainNo 為 booking.trainNoTarget，radioValue 在直接 S3 時不使用
+  // 時間模式：選出最佳班次
   let trainNoForLog, radioValueForSubmit, bestTrain;
   if (isDirectS3) {
     trainNoForLog = booking.trainNoTarget;

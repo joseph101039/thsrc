@@ -141,10 +141,14 @@ function deleteBooking(req, res) {
  */
 function getAttempts(req, res) {
   try {
+    const booking = bookingService.getBookingById(req.params.id);
+    if (!booking) return res.status(404).json({ error: '訂票不存在' });
+    _checkOwner(booking, req.user);
     res.json({ attempts: bookingService.getAttempts(req.params.id) });
   } catch (err) {
     console.error('getAttempts error:', err.message);
-    res.status(500).json({ error: err.message });
+    const status = err.message.includes('403') ? 403 : 500;
+    res.status(status).json({ error: err.message });
   }
 }
 

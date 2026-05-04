@@ -127,6 +127,14 @@ function _migrate(db) {
   }
   if (!bookingCols.includes('owner_email')) {
     db.exec("ALTER TABLE bookings ADD COLUMN owner_email TEXT NOT NULL DEFAULT ''");
+    // 回填舊訂單的 owner_email（從 passengers 表取 email）
+    db.exec(`
+      UPDATE bookings
+      SET owner_email = (
+        SELECT p.email FROM passengers p WHERE p.id = bookings.passenger_id
+      )
+      WHERE owner_email = '' AND passenger_id IS NOT NULL
+    `);
   }
 }
 
