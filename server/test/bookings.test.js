@@ -287,3 +287,71 @@ test('POST /v1/bookings：只提供 retryWaitUnit 不提供 retryWaitValue 應�
     await new Promise(r => server.close(r));
   }
 });
+
+test('POST /v1/bookings：ticketAdult=0 其他也都是 0 應回傳 400', async () => {
+  const server = http.createServer(app);
+  await new Promise(r => server.listen(0, r));
+  try {
+    const token = makeToken();
+    const res = await request(server, 'POST', '/v1/bookings', {
+      ...BOOKING_FIXTURE,
+      ticketAdult: 0, ticketChild: 0, ticketDisabled: 0, ticketSenior: 0, ticketStudent: 0,
+    }, { Authorization: `Bearer ${token}` });
+    assert.strictEqual(res.status, 400);
+  } finally {
+    await new Promise(r => server.close(r));
+  }
+});
+
+test('POST /v1/bookings：ticketAdult=11 應回傳 400', async () => {
+  const server = http.createServer(app);
+  await new Promise(r => server.listen(0, r));
+  try {
+    const token = makeToken();
+    const res = await request(server, 'POST', '/v1/bookings', {
+      ...BOOKING_FIXTURE,
+      ticketAdult: 11,
+    }, { Authorization: `Bearer ${token}` });
+    assert.strictEqual(res.status, 400);
+  } finally {
+    await new Promise(r => server.close(r));
+  }
+});
+
+test('POST /v1/bookings：searchMode=train 且無 trainNoTarget 應回傳 400', async () => {
+  const server = http.createServer(app);
+  await new Promise(r => server.listen(0, r));
+  try {
+    const token = makeToken();
+    const res = await request(server, 'POST', '/v1/bookings', {
+      ...BOOKING_FIXTURE,
+      searchMode: 'train',
+    }, { Authorization: `Bearer ${token}` });
+    assert.strictEqual(res.status, 400);
+  } finally {
+    await new Promise(r => server.close(r));
+  }
+});
+
+test('POST /v1/bookings：ticket counts 和 searchMode 應被儲存並回傳', async () => {
+  const server = http.createServer(app);
+  await new Promise(r => server.listen(0, r));
+  try {
+    const token = makeToken();
+    const createRes = await request(server, 'POST', '/v1/bookings', {
+      ...BOOKING_FIXTURE,
+      ticketAdult: 2, ticketChild: 1,
+    }, { Authorization: `Bearer ${token}` });
+    assert.strictEqual(createRes.status, 200);
+    const id = createRes.body.id;
+
+    const listRes = await request(server, 'GET', '/v1/bookings', null, { Authorization: `Bearer ${token}` });
+    const booking = listRes.body.bookings.find(b => b.id === id);
+    assert.strictEqual(booking.ticketAdult, 2);
+    assert.strictEqual(booking.ticketChild, 1);
+    assert.strictEqual(booking.searchMode, 'time');
+    assert.strictEqual(booking.ownerEmail, 'joseph101039@gmail.com');
+  } finally {
+    await new Promise(r => server.close(r));
+  }
+});
