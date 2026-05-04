@@ -2,16 +2,19 @@ const TYPE_LABEL = {
   adult: '成人', student: '學生', senior: '敬老', disabled: '愛心', child: '兒童',
 };
 
-function passengerCard(p) {
+const ID_NUMBER_RE = /^[A-Z]\d{9}$/;
+
+function passengerCard(p, myEmail) {
   const name      = p.name.replace(/'/g, "\\'");
   const idNumber  = p.idNumber.replace(/'/g, "\\'");
   const email     = p.email.replace(/'/g, "\\'");
+  const displayId = maskId(p.idNumber, p.email, myEmail);
   return `
     <div class="card" id="p-card-${p.id}">
       <div style="display:flex;justify-content:space-between;align-items:flex-start">
         <div>
           <div class="card-title">${p.name}</div>
-          <div class="card-sub">${TYPE_LABEL[p.type] || p.type}　${p.idNumber}</div>
+          <div class="card-sub">${TYPE_LABEL[p.type] || p.type}　${displayId}</div>
           <div class="card-sub">${p.email}</div>
         </div>
       </div>
@@ -27,10 +30,11 @@ function passengerCard(p) {
 
 async function loadPassengers() {
   const el = document.getElementById('passengers-list');
+  const myEmail = window.__auth.getEmail();
   try {
     const { passengers } = await api.getPassengers();
     el.innerHTML = passengers.length
-      ? passengers.map(passengerCard).join('')
+      ? passengers.map(p => passengerCard(p, myEmail)).join('')
       : '<div class="alert alert-info" style="margin-bottom:12px">尚無乘客資料，請新增。</div>';
   } catch (err) {
     el.innerHTML = `<div class="alert alert-warning">載入失敗：${err.message}</div>`;
@@ -65,6 +69,10 @@ async function savePassenger() {
   const email    = document.getElementById('p-email').value.trim();
 
   if (!name || !idNumber || !email) { alert('請填寫所有欄位'); return; }
+  if (!ID_NUMBER_RE.test(idNumber)) {
+    alert('身分證格式錯誤，應為一個大寫英文字母加 9 位數字');
+    return;
+  }
 
   const btn = document.getElementById('save-btn');
   btn.disabled = true;
