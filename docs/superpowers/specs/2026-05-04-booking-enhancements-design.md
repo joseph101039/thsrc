@@ -122,6 +122,16 @@ function maskId(idNumber, passengerEmail, myEmail) {
 
 ---
 
+### Feature 6 — Passenger ID Number Format Validation
+
+**What:** When adding or editing a passenger, validate that the ID number matches the format: one uppercase letter followed by exactly 9 digits (e.g. `A123456789`). Regex: `/^[A-Z]\d{9}$/`.
+
+**Frontend (`ui/js/passengers.js`):** `savePassenger()` validates before calling the API. On failure: `alert('身分證格式錯誤，應為一個大寫英文字母加 9 位數字')`.
+
+**Backend (`server/src/services/passengerService.js`):** Same regex validation in `savePassenger()`. Throws `{ status: 400 }` on failure, so invalid data is rejected even if called directly via API.
+
+---
+
 ## Data Model Summary
 
 ### `bookings` table — new columns
@@ -145,9 +155,10 @@ All added via `_migrate()` with `ALTER TABLE … ADD COLUMN`.
 
 ### Backend
 - `server/src/db.js` — migration for 8 new columns
-- `server/src/repositories/bookingRepo.js` — `create()`, `getAll()` with owner filter
+- `server/src/repositories/bookingRepo.js` — `create()`, `getAll()`
 - `server/src/services/bookingService.js` — validation for ticket counts and search mode
-- `server/src/controllers/bookingController.js` — pass `ownerEmail`; role-based filter; 403 guard on mutate
+- `server/src/services/passengerService.js` — ID number format validation
+- `server/src/controllers/bookingController.js` — pass `ownerEmail`; 403 guard on mutate
 - `server/src/thsrc.js` — dynamic ticket fields; train-number search mode
 
 ### Frontend
@@ -156,4 +167,4 @@ All added via `_migrate()` with `ALTER TABLE … ADD COLUMN`.
 - `ui/booking.html` — ticket type section; segmented toggle markup
 - `ui/js/index.js` — passenger line with masked ID on booking cards
 - `ui/js/booking-detail.js` — passenger line; ticket summary; search mode display
-- `ui/js/passengers.js` — masked ID in passenger cards
+- `ui/js/passengers.js` — masked ID in passenger cards; ID format validation
