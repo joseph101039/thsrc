@@ -64,7 +64,7 @@ function listBookings(req, res) {
  */
 function createBooking(req, res) {
   try {
-    const result = bookingService.createBooking(req.body);
+    const result = bookingService.createBooking({ ...req.body, ownerEmail: req.user.email });
     if (req.body.immediate && result.id) {
       runBooking(result.id).catch(err => console.error('createBooking immediate runBooking error:', err.message));
     }
@@ -73,6 +73,12 @@ function createBooking(req, res) {
     console.error('createBooking error:', err.message);
     const status = [400, 401, 403, 404, 409].includes(err.status) ? err.status : 500;
     res.status(status).json({ error: err.message });
+  }
+}
+
+function _checkOwner(booking, user) {
+  if (user.role !== 'admin' && booking.ownerEmail !== user.email) {
+    throw Object.assign(new Error('無權限操作此訂票'), { status: 403 });
   }
 }
 
@@ -96,6 +102,9 @@ function createBooking(req, res) {
  */
 function deleteBooking(req, res) {
   try {
+    const booking = bookingService.getBookingById(req.params.id);
+    if (!booking) return res.status(404).json({ error: '找不到訂票紀錄' });
+    _checkOwner(booking, req.user);
     res.json(bookingService.deleteBooking(req.params.id));
   } catch (err) {
     console.error('deleteBooking error:', err.message);
@@ -163,6 +172,9 @@ function getAttempts(req, res) {
  */
 function cancelBooking(req, res) {
   try {
+    const booking = bookingService.getBookingById(req.params.id);
+    if (!booking) return res.status(404).json({ error: '找不到訂票紀錄' });
+    _checkOwner(booking, req.user);
     res.json(bookingService.cancelBooking(req.params.id));
   } catch (err) {
     console.error('cancelBooking error:', err.message);
@@ -176,6 +188,7 @@ function refundBooking(req, res) {
     if (!booking) {
       return res.status(404).json({ error: '找不到訂票紀錄' });
     }
+    _checkOwner(booking, req.user);
     if (booking.status !== 'success') {
       return res.status(400).json({ error: '只有成功訂票才能退票' });
     }
