@@ -64,7 +64,7 @@ function savePassenger(req, res) {
     res.json(passengerService.savePassenger(req.body));
   } catch (err) {
     console.error('savePassenger error:', err.message);
-    res.status(500).json({ error: err.message });
+    res.status(err.status || 500).json({ error: err.message });
   }
 }
 
