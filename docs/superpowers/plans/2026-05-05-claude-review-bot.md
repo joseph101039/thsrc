@@ -47,20 +47,20 @@ jobs:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           model: claude-sonnet-4-6
           direct_prompt: |
-            請用繁體中文審查這個 Pull Request 的程式碼變更。
+            Please review the code changes in this Pull Request in English.
 
-            審查範圍：
-            1. **邏輯錯誤** — 潛在的 bug、邊界條件、非預期行為
-            2. **安全漏洞** — OWASP Top 10、injection、auth 問題、敏感資料洩漏
-            3. **程式碼品質** — 命名清晰度、重複程式碼、SOLID 原則
-            4. **效能問題** — N+1 查詢、不必要的計算、記憶體洩漏
-            5. **可維護性** — 耦合度、可讀性、模組邊界
+            Review areas:
+            1. **Logic errors** — potential bugs, edge cases, unexpected behavior
+            2. **Security vulnerabilities** — OWASP Top 10, injection, auth issues, sensitive data exposure
+            3. **Code quality** — naming clarity, code duplication, SOLID principles
+            4. **Performance issues** — N+1 queries, unnecessary computation, memory leaks
+            5. **Maintainability** — coupling, readability, module boundaries
 
-            輸出格式：
-            - 先給一段整體摘要（2-3 句）
-            - 再依嚴重度分組列出問題：🔴 嚴重、🟡 建議、🟢 小改進
-            - 每個問題說明：位置、問題描述、建議修法
-            - 若無問題則說明程式碼品質良好的原因
+            Output format:
+            - Start with a brief overall summary (2-3 sentences)
+            - Group issues by severity: 🔴 Critical, 🟡 Suggestion, 🟢 Minor
+            - For each issue: location, description, recommended fix
+            - If no issues found, explain why the code quality is good
 ```
 
 - [ ] **Step 2: Verify the file exists**
