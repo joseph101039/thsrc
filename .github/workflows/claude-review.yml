@@ -6,18 +6,42 @@ on:
     branches:
       - main
 
-permissions:
-  contents: read
-  pull-requests: write
-  id-token: write
-
 jobs:
   review:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      id-token: write
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
       - name: Claude Code Review
         uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          prompt: "Review this pull request for code quality, correctness, and security. Analyze the diff, then post your findings as a PR comment."
-          claude_args: "--model claude-sonnet-4-6 --max-turns 5"
+          prompt: |
+            REPO: ${{ github.repository }}
+            PR NUMBER: ${{ github.event.pull_request.number }}
+
+            Please review the code changes in this Pull Request in English.
+
+            Review areas:
+            1. **Logic errors** — potential bugs, edge cases, unexpected behavior
+            2. **Security vulnerabilities** — OWASP Top 10, injection, auth issues, sensitive data exposure
+            3. **Code quality** — naming clarity, code duplication, SOLID principles
+            4. **Performance issues** — N+1 queries, unnecessary computation, memory leaks
+            5. **Maintainability** — coupling, readability, module boundaries
+
+            Output format:
+            - Start with a brief overall summary (2-3 sentences)
+            - Group issues by severity: 🔴 Critical, 🟡 Suggestion, 🟢 Minor
+            - For each issue: location, description, recommended fix
+            - If no issues found, explain why the code quality is good
+          claude_args: |
+            --allowedTools "Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*)"
+            --model claude-sonnet-4-6
+            --max-turns 5
