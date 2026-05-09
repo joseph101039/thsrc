@@ -199,6 +199,16 @@ def health():
     }
 
 
+@app.get(
+    "/healthz",
+    summary="Liveness probe (docker healthcheck)",
+    tags=["Utility"],
+)
+def healthz():
+    """輕量 liveness 探針:process 活著即回 200,不檢查模型。"""
+    return {"status": "ok"}
+
+
 @app.post(
     "/solve",
     response_model=SolveResponse,

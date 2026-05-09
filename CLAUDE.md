@@ -116,8 +116,6 @@ docker-compose.yml     — orchestrates: captcha (8080), server (8081), schedule
 .env.local             — (git-ignored) local overrides for docker-compose.override.yml (no required variables currently)
 ```
 
-**VM:** GCE e2-micro `instance-20260427-141455`, us-west1-b, IP `35.212.154.47`, GCP project `sincere-office-494609-m3` (free tier, 720 hours/month)
-
 ## Architecture Gotchas
 
 **node:sqlite requires flag:** All `node` invocations must use `--experimental-sqlite`. The `package.json` scripts already include it; the Dockerfile CMD does too.
@@ -136,7 +134,6 @@ docker-compose.yml     — orchestrates: captcha (8080), server (8081), schedule
 
 - Follow SOLID principles.
 - Use async/await for all asynchronous operations (database, HTTP requests, etc.)
-- Centralize configuration in `config.js`
 - Use Express middleware for common concerns (e.g. JSON parsing, error handling)
 - Layered architecture: controllers → services → repositories → models
 - Error handling: API responses should include clear error messages and status codes. Log errors to the console for debugging.

@@ -1,6 +1,7 @@
 'use strict';
 
 const userService = require('../services/userService');
+const logger = require('../logger');
 
 /**
  * @swagger
@@ -27,7 +28,7 @@ function listUsers(req, res) {
   try {
     res.json({ users: userService.listUsers() });
   } catch (err) {
-    console.error('listUsers error:', err.message);
+    (req.log || logger).error({ err: err.message }, 'listUsers error');
     res.status(500).json({ error: err.message });
   }
 }
@@ -72,7 +73,7 @@ function addUser(req, res) {
     if (!result.success) return res.status(400).json(result);
     res.json(result);
   } catch (err) {
-    console.error('addUser error:', err.message);
+    (req.log || logger).error({ err: err.message }, 'addUser error');
     res.status(500).json({ error: err.message });
   }
 }
@@ -103,7 +104,7 @@ function deleteUser(req, res) {
     if (!result.success) return res.status(400).json(result);
     res.json(result);
   } catch (err) {
-    console.error('deleteUser error:', err.message);
+    (req.log || logger).error({ err: err.message }, 'deleteUser error');
     res.status(500).json({ error: err.message });
   }
 }

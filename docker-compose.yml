@@ -4,6 +4,13 @@ services:
     ports:
       - "8080:8080"
     restart: unless-stopped
+    healthcheck:
+      # 走 /health(已存在於既有 image);新加的 /healthz 要等 captcha image 重 build 部署後生效
+      test: ["CMD-SHELL", "python -c \"import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8080/health',timeout=3).status==200 else 1)\""]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
 
   server:
     build: ./server
@@ -14,6 +21,12 @@ services:
       - db-data:/app/data
     env_file: .env
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"require('http').get('http://localhost:8081/healthz',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))\""]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
   scheduler:
     build: ./server
@@ -23,6 +36,13 @@ services:
       - db-data:/app/data
     env_file: .env
     restart: unless-stopped
+    healthcheck:
+      # scheduler 以 PID 1 啟動於 container,直接讀 /proc/1/cmdline 確認仍是 scheduler.js
+      test: ["CMD-SHELL", "tr -d '\\0' < /proc/1/cmdline | grep -q scheduler.js"]
+      interval: 60s
+      timeout: 5s
+      retries: 2
+      start_period: 10s
 
   watchtower:
     image: containrrr/watchtower

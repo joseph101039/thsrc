@@ -1,0 +1,5 @@
+
+test/*.db
+test/*.db-shm
+test/*.db-wal
+test/sessions.db

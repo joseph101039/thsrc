@@ -74,6 +74,11 @@ function _initSchema(db) {
       role        TEXT NOT NULL DEFAULT 'user',
       created_at  TEXT NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS system_heartbeat (
+      component      TEXT PRIMARY KEY,
+      last_seen_at   TEXT NOT NULL
+    );
   `);
 }
 

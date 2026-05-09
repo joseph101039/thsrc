@@ -1,5 +1,6 @@
 'use strict';
 
+const logger = require('../logger');
 const fetch = require('node-fetch');
 const CONFIG = require('../config');
 const bookingRepo = require('../repositories/bookingRepo');
@@ -8,11 +9,15 @@ const { thsrcInit, thsrcGetCaptcha, thsrcQueryTrains, thsrcSubmitBooking, select
 
 const BOOKING_TIMEOUT_MS = 120000;
 
-async function runBooking(bookingId) {
+async function runBooking(bookingId, parentLog) {
+  // parentLog 由呼叫者傳入,可保留 component:'scheduler' 等上層 tag;
+  // 未提供時 fallback 到 root logger。
+  const baseLog = parentLog || logger;
+  const log = baseLog.child({ booking_id: bookingId });
   // Atomic CAS：只有搶到鎖（status pending→running）才執行，避免重複執行競態
   const claimed = bookingRepo.tryClaimBooking(bookingId);
   if (!claimed) {
-    console.log(`  [skip] bookingId=${bookingId} already claimed by another runner`);
+    log.info('skip: already claimed by another runner');
     return;
   }
 
@@ -24,23 +29,23 @@ async function runBooking(bookingId) {
   );
 
   try {
-    await Promise.race([_doBooking(bookingId, booking), timeout]);
+    await Promise.race([_doBooking(bookingId, booking, log), timeout]);
   } catch (err) {
-    console.error('runBooking error:', err.message);
-    return handleRetry(booking, err.message);
+    log.error({ err: err.message }, 'runBooking error');
+    return handleRetry(booking, err.message, log);
   }
 }
 
-async function _doBooking(bookingId, booking) {
-  console.log('  [1/5] thsrcInit...');
+async function _doBooking(bookingId, booking, log) {
+  log.info('[1/5] thsrcInit');
   const { cookieJar, formAction, captchaUrl, bookingMethod, bookingMethodTrain } = await thsrcInit();
-  console.log(`  [1/5] done — bookingMethod=${bookingMethod} bookingMethodTrain=${bookingMethodTrain} formAction=${formAction.slice(0, 60)}...`);
+  log.info({ booking_method: bookingMethod, booking_method_train: bookingMethodTrain }, '[1/5] done');
 
-  console.log('  [2/5] thsrcGetCaptcha...');
+  log.info('[2/5] thsrcGetCaptcha');
   const captchaBase64 = await thsrcGetCaptcha(cookieJar, captchaUrl);
-  console.log(`  [2/5] done — base64 length=${captchaBase64.length}`);
+  log.info({ captcha_b64_len: captchaBase64.length }, '[2/5] done');
 
-  console.log(`  [3/5] solving captcha via ${CONFIG.CAPTCHA_API_URL}/solve ...`);
+  log.info({ url: CONFIG.CAPTCHA_API_URL + '/solve' }, '[3/5] solving captcha');
   const captchaRes = await fetch(CONFIG.CAPTCHA_API_URL + '/solve', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -49,9 +54,16 @@ async function _doBooking(bookingId, booking) {
   const captchaJson = await captchaRes.json();
   if (!captchaJson.answer) throw new Error('驗證碼辨識失敗：' + (captchaJson.detail || JSON.stringify(captchaJson)));
   const captchaAnswer = captchaJson.answer;
-  console.log(`  [3/5] done — answer=${captchaAnswer} confidence=${captchaJson.confidence ? captchaJson.confidence.map(c => c.toFixed(2)).join(',') : 'n/a'}`);
+  log.debug({
+    answer: captchaAnswer,
+    confidence: captchaJson.confidence ? captchaJson.confidence.map(c => Number(c.toFixed(2))) : null,
+  }, '[3/5] done');
 
-  console.log(`  [4/5] thsrcQueryTrains ${booking.fromStation}→${booking.toStation} ${booking.date} ${booking.earliestTime}~${booking.latestTime} searchMode=${booking.searchMode} trainNoTarget=${booking.trainNoTarget}...`);
+  log.info({
+    from: booking.fromStation, to: booking.toStation, date: booking.date,
+    earliest: booking.earliestTime, latest: booking.latestTime,
+    search_mode: booking.searchMode, train_no_target: booking.trainNoTarget,
+  }, '[4/5] thsrcQueryTrains');
   const { trains, s2FormAction, isDirectS3, cookieJar: queryCookieJar } = await thsrcQueryTrains(cookieJar, formAction, {
     fromStation: booking.fromStation,
     toStation: booking.toStation,
@@ -69,15 +81,15 @@ async function _doBooking(bookingId, booking) {
     ticketSenior: booking.ticketSenior,
     ticketStudent: booking.ticketStudent,
   });
-  console.log(`  [4/5] done — ${trains.length} trains found, isDirectS3=${isDirectS3} s2FormAction=${s2FormAction ? s2FormAction.slice(0, 60) + '...' : 'null'}`);
-  trains.forEach(t => console.log(`    班次 ${t.trainNo} ${t.departTime}→${t.arriveTime} (${t.radioValue})`));
+  log.info({ trains_count: trains.length, is_direct_s3: isDirectS3 }, '[4/5] done');
+  trains.forEach(t => log.debug({ train_no: t.trainNo, depart: t.departTime, arrive: t.arriveTime }, '  candidate'));
 
   // 車次模式：S1 直接回傳 S3 — trains 為空陣列，但 s2FormAction（實為 S3 URL）存在則繼續
   if (!isDirectS3 && trains.length === 0) {
-    return handleRetry(booking, '無可用班次');
+    return handleRetry(booking, '無可用班次', log);
   }
   if (!s2FormAction) {
-    return handleRetry(booking, '無可用班次');
+    return handleRetry(booking, '無可用班次', log);
   }
 
   // 車次模式：trainNo 為 booking.trainNoTarget，radioValue 在直接 S3 時不使用
@@ -89,7 +101,7 @@ async function _doBooking(bookingId, booking) {
     bookingRepo.updateFields(bookingId, { trainNo: booking.trainNoTarget });
   } else {
     bestTrain = selectBestTrain(trains, booking.desiredTime);
-    console.log(`  [4/5] selected — 車次 ${bestTrain.trainNo} ${bestTrain.departTime}→${bestTrain.arriveTime} (desired=${booking.desiredTime})`);
+    log.info({ train_no: bestTrain.trainNo, depart: bestTrain.departTime, arrive: bestTrain.arriveTime, desired: booking.desiredTime }, '[4/5] selected');
     bookingRepo.updateFields(bookingId, { trainNo: bestTrain.trainNo });
     trainNoForLog = bestTrain.trainNo;
     radioValueForSubmit = bestTrain.radioValue;
@@ -97,7 +109,11 @@ async function _doBooking(bookingId, booking) {
 
   const passenger = passengerRepo.getById(booking.passengerId);
   if (!passenger) throw new Error('旅客資料不存在：' + booking.passengerId);
-  console.log(`  [5/5] thsrcSubmitBooking trainNo=${trainNoForLog} isDirectS3=${isDirectS3} passenger.idNumber=${passenger.idNumber.slice(0, 3)}... phone=${passenger.phone} email=${passenger.email}`);
+  log.info({
+    train_no: trainNoForLog,
+    is_direct_s3: isDirectS3,
+    id_prefix: passenger.idNumber.slice(0, 3),
+  }, '[5/5] thsrcSubmitBooking');
   const result = await thsrcSubmitBooking(queryCookieJar, s2FormAction, {
     trainNo: radioValueForSubmit,
     captcha: captchaAnswer,
@@ -109,7 +125,7 @@ async function _doBooking(bookingId, booking) {
     ticketSenior: booking.ticketSenior,
     ticketStudent: booking.ticketStudent,
   });
-  console.log(`  [5/5] done — success=${result.success} ticketNo=${result.ticketNo} error=${result.error}`);
+  log.info({ success: result.success, ticket_no: result.ticketNo, error: result.error }, '[5/5] done');
 
   if (result.success) {
     bookingRepo.updateFields(bookingId, {
@@ -118,20 +134,21 @@ async function _doBooking(bookingId, booking) {
       departTime: isDirectS3 ? null : bestTrain.departTime,
     });
     bookingRepo.createAttempt({ bookingId, success: true, reason: null });
-    console.log('  [done] 訂票成功：', bookingId, result.ticketNo);
+    log.info({ ticket_no: result.ticketNo }, '訂票成功');
   } else {
-    return handleRetry(booking, result.error);
+    return handleRetry(booking, result.error, log);
   }
 }
 
-function handleRetry(booking, reason) {
+function handleRetry(booking, reason, log) {
+  const childLog = log || logger.child({ booking_id: booking.id });
   const newRetryCount = (booking.retryCount || 0) + 1;
   bookingRepo.updateFields(booking.id, { retryCount: newRetryCount });
   bookingRepo.createAttempt({ bookingId: booking.id, success: false, reason });
 
   if (newRetryCount >= booking.maxRetries) {
     bookingRepo.updateFields(booking.id, { status: CONFIG.BOOKING_STATUS.FAILED });
-    console.log('Booking failed after max retries:', booking.id);
+    childLog.warn('booking failed after max retries');
   } else {
     const waitValue = booking.retryWaitValue ?? CONFIG.RETRY_WAIT_MINUTES;
     const waitUnit  = booking.retryWaitUnit  ?? 'minute';
@@ -141,8 +158,8 @@ function handleRetry(booking, reason) {
       status: CONFIG.BOOKING_STATUS.PENDING,
       scheduledAt: retryAt,
     });
-    setTimeout(() => runBooking(booking.id).catch(err => console.error(`  [retry-timeout] bookingId=${booking.id} error:`, err.message)), waitMs);
-    console.log('Scheduled retry', newRetryCount, '/', booking.maxRetries, 'for booking:', booking.id, `in ${waitMs}ms`);
+    setTimeout(() => runBooking(booking.id, childLog).catch(err => childLog.error({ err: err.message }, 'retry-timeout error')), waitMs);
+    childLog.info({ retry: newRetryCount, max: booking.maxRetries, wait_ms: waitMs }, 'scheduled retry');
   }
 }
 
