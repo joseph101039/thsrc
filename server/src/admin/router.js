@@ -1,5 +1,6 @@
 'use strict';
 
+const logger = require('../logger');
 const path = require('path');
 const express = require('express');
 const session = require('express-session');
@@ -14,7 +15,7 @@ const SESSION_SECRET = process.env.SESSION_SECRET;
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
 
 if (!SESSION_SECRET || !ADMIN_PASSWORD) {
-  console.warn('警告：SESSION_SECRET 或 ADMIN_PASSWORD 未設定，Admin panel 將無法使用');
+  logger.warn('警告：SESSION_SECRET 或 ADMIN_PASSWORD 未設定，Admin panel 將無法使用');
 }
 
 router.use(session({
@@ -47,7 +48,7 @@ router.post('/login', loginLimiter, express.urlencoded({ extended: false }), (re
   if (ADMIN_PASSWORD && password === ADMIN_PASSWORD) {
     req.session.regenerate((err) => {
       if (err) {
-        console.error('Session regenerate 失敗', err);
+        logger.error({ err: err.message }, 'Session regenerate 失敗');
         return res.status(500).send('Session error');
       }
       req.session.adminAuthed = true;
@@ -55,7 +56,7 @@ router.post('/login', loginLimiter, express.urlencoded({ extended: false }), (re
     });
     return;
   }
-  console.error('管理員登入失敗：密碼錯誤');
+  logger.warn('管理員登入失敗：密碼錯誤');
   return res.redirect('/admin/login?err=1');
 });
 

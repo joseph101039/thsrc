@@ -1,6 +1,7 @@
 'use strict';
 
 const passengerService = require('../services/passengerService');
+const logger = require('../logger');
 
 /**
  * @swagger
@@ -27,7 +28,7 @@ function listPassengers(req, res) {
   try {
     res.json({ passengers: passengerService.listPassengers() });
   } catch (err) {
-    console.error('listPassengers error:', err.message);
+    (req.log || logger).error({ err: err.message }, 'listPassengers error');
     res.status(500).json({ error: err.message });
   }
 }
@@ -63,7 +64,7 @@ function savePassenger(req, res) {
   try {
     res.json(passengerService.savePassenger(req.body));
   } catch (err) {
-    console.error('savePassenger error:', err.message);
+    (req.log || logger).error({ err: err.message }, 'savePassenger error');
     res.status(err.status || 500).json({ error: err.message });
   }
 }
@@ -90,7 +91,7 @@ function deletePassenger(req, res) {
   try {
     res.json(passengerService.deletePassenger(req.params.id));
   } catch (err) {
-    console.error('deletePassenger error:', err.message);
+    (req.log || logger).error({ err: err.message }, 'deletePassenger error');
     res.status(500).json({ error: err.message });
   }
 }

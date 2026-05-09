@@ -20,6 +20,7 @@
     "node-fetch": "^2.7.0",
     "node-schedule": "^2.1.1",
     "nodemailer": "^6.9.13",
+    "pino": "^9.14.0",
     "swagger-jsdoc": "^6.2.8",
     "swagger-ui-express": "^5.0.1",
     "uuid": "^9.0.1"

@@ -4,6 +4,7 @@ const bookingService = require('../services/bookingService');
 const bookingRepo = require('../repositories/bookingRepo');
 const { runRefund } = require('../services/refundEngineService');
 const { runBooking } = require('../services/bookingEngineService');
+const logger = require('../logger');
 
 /**
  * @swagger
@@ -30,7 +31,7 @@ function listBookings(req, res) {
   try {
     res.json({ bookings: bookingService.listBookings() });
   } catch (err) {
-    console.error('listBookings error:', err.message);
+    (req.log || logger).error({ err: err.message }, 'listBookings error');
     res.status(500).json({ error: err.message });
   }
 }
@@ -66,11 +67,11 @@ function createBooking(req, res) {
   try {
     const result = bookingService.createBooking({ ...req.body, ownerEmail: req.user.email });
     if (req.body.immediate && result.id) {
-      runBooking(result.id).catch(err => console.error('createBooking immediate runBooking error:', err.message));
+      runBooking(result.id, req.log || logger).catch(err => (req.log || logger).error({ booking_id: result.id, err: err.message }, 'createBooking immediate runBooking error'));
     }
     res.json(result);
   } catch (err) {
-    console.error('createBooking error:', err.message);
+    (req.log || logger).error({ err: err.message }, 'createBooking error');
     const status = [400, 401, 403, 404, 409].includes(err.status) ? err.status : 500;
     res.status(status).json({ error: err.message });
   }
@@ -107,7 +108,7 @@ function deleteBooking(req, res) {
     _checkOwner(booking, req.user);
     res.json(bookingService.deleteBooking(req.params.id));
   } catch (err) {
-    console.error('deleteBooking error:', err.message);
+    (req.log || logger).error({ err: err.message }, 'deleteBooking error');
     res.status(err.status || 500).json({ error: err.message });
   }
 }
@@ -146,7 +147,7 @@ function getAttempts(req, res) {
     _checkOwner(booking, req.user);
     res.json({ attempts: bookingService.getAttempts(req.params.id) });
   } catch (err) {
-    console.error('getAttempts error:', err.message);
+    (req.log || logger).error({ err: err.message }, 'getAttempts error');
     const status = err.message.includes('403') ? 403 : 500;
     res.status(status).json({ error: err.message });
   }
@@ -181,7 +182,7 @@ function cancelBooking(req, res) {
     _checkOwner(booking, req.user);
     res.json(bookingService.cancelBooking(req.params.id));
   } catch (err) {
-    console.error('cancelBooking error:', err.message);
+    (req.log || logger).error({ err: err.message }, 'cancelBooking error');
     res.status(err.status || 500).json({ error: err.message });
   }
 }
@@ -202,10 +203,10 @@ function refundBooking(req, res) {
     // 同步設為 refunding，防止重複提交（race condition）
     bookingRepo.updateFields(req.params.id, { refundStatus: 'refunding' });
     // 非同步執行退票，不等待
-    runRefund(req.params.id).catch(err => console.error('refundBooking background error:', err.message));
+    runRefund(req.params.id).catch(err => logger.error({ booking_id: req.params.id, err: err.message }, 'refundBooking background error'));
     res.status(202).json({ success: true });
   } catch (err) {
-    console.error('refundBooking error:', err.message);
+    (req.log || logger).error({ err: err.message }, 'refundBooking error');
     res.status(err.status || 500).json({ error: err.message });
   }
 }
