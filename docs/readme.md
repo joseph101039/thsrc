@@ -344,3 +344,41 @@ gcloud compute ssh instance-20260427-141455 --zone=us-west1-b --project=sincere-
 - **Live API:** `https://api.joseph101039.uk/` (also `http://35.212.154.47:8080`)
 - **Integration:** `server/src/config.js` → `CAPTCHA_API_URL`; `bookingEngineService.js` → POST `/solve`
 - **Source:** `captcha/` — see `captcha/CLAUDE.md` for full documentation
+
+---
+
+## GCP 資源清單
+
+| 資源 | 識別 / 位置 | 用途 | 操作腳本 / runbook |
+|------|------------|------|-------------------|
+| **GCE VM** | `instance-20260427-141455`,zone `us-west1-b`,e2-micro,RAM 952MB,IP `35.212.154.47` | 跑 docker compose:server / scheduler / captcha / watchtower | `DOCKERHUB_USER=joseph50804 bash server/deploy-server.sh`(server image)、`DOCKERHUB_USER=joseph50804 ./captcha/apiserver/deploy-gce.sh`(captcha image) |
+| **靜態 IP** | `captcha-solver-ip`,us-west1,STANDARD tier,`35.212.154.47` | VM 對外 IP,reboot 不變 | — |
+| **防火牆** | `allow-captcha-8080`,target tag `captcha-solver` | 開 TCP 8080 給 captcha 服務 | — |
+| **Cloudflare Named Tunnel** | `api.joseph101039.uk` → VM:8081 | 對外 HTTPS,VM 重啟仍穩定 | — |
+| **GCS bucket** | `gs://sincere-office-thsrc-db-backup`,location `us-west1`(single region),class `STANDARD`,30 天 lifecycle delete | 每日 SQLite DB 備份;Always Free 5GB 範圍內 $0 月費 | `docs/runbooks/setup-gcs-backup.md`(一次性建置)、`scripts/backup-db.sh`(每日由 cron 觸發)、`docs/runbooks/restore-db.md`(還原流程) |
+| **Service Account: thsrc-backup** | `thsrc-backup@sincere-office-494609-m3.iam.gserviceaccount.com`,bucket-level `roles/storage.objectAdmin` | 上傳 DB 備份的最小權限身份;key file 放 VM `~/thsrc-backup-key.json` | `docs/runbooks/setup-gcs-backup.md` step 5 |
+| **Service Account: GCE default** | `1023547405995-compute@developer.gserviceaccount.com`,scope `devstorage.read_only` | VM 預設身份,只讀 storage(寫入交給 thsrc-backup SA) | — |
+| **Cron(VM host)** | `/etc/cron.d/thsrc-backup`,daily 19:00 UTC(台灣 03:00) | 觸發 backup-db.sh,log → `/var/log/thsrc-backup.log` | `scripts/install-backup-cron.sh`(安裝) |
+| **Docker Hub images** | `joseph50804/thsrc-server:latest`、`joseph50804/captcha-solver:latest` | 兩個 service image,watchtower 5 分鐘自動 pull | `server/deploy-server.sh`、`captcha/apiserver/deploy-gce.sh` |
+| **Watchtower** | `nickfedor/watchtower:latest`,`--interval 300` | VM 上自動 pull 新 image;原 `containrrr/watchtower` 已 archived 改用 active fork | `docker-compose.yml` |
+
+### 常用維運操作
+
+```bash
+# 服務健康檢查
+curl https://api.joseph101039.uk/healthz   # liveness
+curl https://api.joseph101039.uk/readyz    # readiness (DB + scheduler heartbeat)
+
+# 列出近期備份
+gsutil ls -l gs://sincere-office-thsrc-db-backup/daily/
+
+# 手動觸發一次備份(VM 上)
+gcloud compute ssh instance-20260427-141455 --zone=us-west1-b --project=sincere-office-494609-m3 \
+  --command="~/scripts/backup-db.sh"
+
+# 看備份 cron log
+gcloud compute ssh instance-20260427-141455 --zone=us-west1-b --project=sincere-office-494609-m3 \
+  --command="tail -50 /var/log/thsrc-backup.log"
+
+# 還原:見 docs/runbooks/restore-db.md
+```
