@@ -45,7 +45,9 @@ services:
       start_period: 10s
 
   watchtower:
-    image: containrrr/watchtower
+    # containrrr/watchtower 已 archived (2024)；改用社群 active fork
+    # nickfedor/watchtower 與原版 CLI/設定完全相容,且支援現代 Docker API
+    image: nickfedor/watchtower:latest
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     command: --interval 300
