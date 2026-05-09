@@ -78,18 +78,24 @@ curl http://35.212.154.47:8081/
 ## Architecture
 
 ```
-docs/readme.md         — system architecture diagram and data flow; update when modifying core workflows
+docs/
+  readme.md            — system architecture diagram and data flow; update when modifying core workflows
+  runbooks/            — operational runbooks
+    setup-gcs-backup.md — one-time GCS bucket + IAM setup for SQLite backup
+    restore-db.md       — restore SQLite from GCS backup
 ui/                    — GitHub Pages frontend (vanilla HTML/CSS/JS); deployed via git subtree push --prefix=ui ui main to joseph101039/thsrc-booking
 server/                — Node.js/Express backend + job scheduler; deployed to GCE via docker image
   src/
     api.js             — Express entry point (port 8081); mounts middleware, routes, and Swagger UI
-    scheduler.js       — node-schedule worker; polls SQLite every 60s for pending bookings (status='pending' AND scheduled_at <= now)
+    scheduler.js       — node-schedule worker; polls SQLite every 60s for pending bookings (status='pending' AND scheduled_at <= now); writes scheduler heartbeat
     thsrc.js           — THSRC website automation; handles session init, train search, captcha fetch, booking submission
-    db.js              — SQLite wrapper (node:sqlite); shared volume between server and scheduler containers
+    db.js              — SQLite wrapper (node:sqlite); shared volume between server and scheduler containers; defines system_heartbeat table
     config.js          — centralized constants: station codes, booking status enums, captcha solver API URL
+    logger.js          — pino structured logger with GCP severity, redact rules for sensitive fields (idNumber, password, token, phone, email)
     swagger.js         — Swagger/OpenAPI spec generation (swagger-jsdoc)
     routes/
-      v1.js            — /api/v1 route definitions; applies auth + adminOnly middleware per endpoint
+      v1.js            — /v1 route definitions; applies auth + adminOnly middleware per endpoint
+      health.js        — /healthz (liveness) + /readyz (readiness: DB + scheduler heartbeat)
     controllers/
       authController.js      — login, register, JWT token issuance
       bookingController.js   — create/list/cancel bookings
@@ -105,14 +111,19 @@ server/                — Node.js/Express backend + job scheduler; deployed to 
       bookingRepo.js    — SQLite queries for bookings table
       passengerRepo.js  — SQLite queries for passengers table
       userRepo.js       — SQLite queries for users table
+      heartbeatRepo.js  — upsert/get on system_heartbeat (used by /readyz)
     models/
       schemas.js        — shared validation constants (e.g. VALID_ROLES)
     middlewares/
       auth.js           — JWT verification middleware
       adminOnly.js      — role-guard middleware (rejects non-admin)
+      requestLogger.js  — attach pino child logger with X-Request-Id (validated regex; UUID fallback)
   Dockerfile            — builds linux/amd64 image; includes --experimental-sqlite flag in CMD
 captcha/               — CRNN+CTC solver; deployed separately; see captcha/CLAUDE.md for details
-docker-compose.yml     — orchestrates: captcha (8080), server (8081), scheduler; defines shared db-data volume
+scripts/               — host-side ops scripts (run on GCE VM via cron)
+  backup-db.sh         — daily SQLite backup: docker exec VACUUM INTO → docker cp → gzip → gsutil cp
+  install-backup-cron.sh — installs /etc/cron.d/thsrc-backup (daily 19:00 UTC / Taipei 03:00)
+docker-compose.yml     — orchestrates: captcha (8080), server (8081), scheduler; defines shared db-data volume; healthcheck per service
 .env.local             — (git-ignored) local overrides for docker-compose.override.yml (no required variables currently)
 ```
 
