@@ -9,8 +9,11 @@ const { thsrcInit, thsrcGetCaptcha, thsrcQueryTrains, thsrcSubmitBooking, select
 
 const BOOKING_TIMEOUT_MS = 120000;
 
-async function runBooking(bookingId) {
-  const log = logger.child({ booking_id: bookingId });
+async function runBooking(bookingId, parentLog) {
+  // parentLog 由呼叫者傳入,可保留 component:'scheduler' 等上層 tag;
+  // 未提供時 fallback 到 root logger。
+  const baseLog = parentLog || logger;
+  const log = baseLog.child({ booking_id: bookingId });
   // Atomic CAS：只有搶到鎖（status pending→running）才執行，避免重複執行競態
   const claimed = bookingRepo.tryClaimBooking(bookingId);
   if (!claimed) {
@@ -51,7 +54,7 @@ async function _doBooking(bookingId, booking, log) {
   const captchaJson = await captchaRes.json();
   if (!captchaJson.answer) throw new Error('驗證碼辨識失敗：' + (captchaJson.detail || JSON.stringify(captchaJson)));
   const captchaAnswer = captchaJson.answer;
-  log.info({
+  log.debug({
     answer: captchaAnswer,
     confidence: captchaJson.confidence ? captchaJson.confidence.map(c => Number(c.toFixed(2))) : null,
   }, '[3/5] done');
@@ -155,7 +158,7 @@ function handleRetry(booking, reason, log) {
       status: CONFIG.BOOKING_STATUS.PENDING,
       scheduledAt: retryAt,
     });
-    setTimeout(() => runBooking(booking.id).catch(err => childLog.error({ err: err.message }, 'retry-timeout error')), waitMs);
+    setTimeout(() => runBooking(booking.id, childLog).catch(err => childLog.error({ err: err.message }, 'retry-timeout error')), waitMs);
     childLog.info({ retry: newRetryCount, max: booking.maxRetries, wait_ms: waitMs }, 'scheduled retry');
   }
 }

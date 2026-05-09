@@ -5,6 +5,7 @@ const CONFIG = require('./config');
 const bookingRepo = require('./repositories/bookingRepo');
 const { runBooking } = require('./services/bookingEngineService');
 const { runRefund } = require('./services/refundEngineService');
+const heartbeatRepo = require('./repositories/heartbeatRepo');
 const logger = require('./logger').child({ component: 'scheduler' });
 
 // 提前多少毫秒排入 setTimeout（讓 runBooking 在 scheduled_at 前開始準備）
@@ -17,6 +18,13 @@ const scheduledIds = new Set();
 
 logger.info('Scheduler started');
 
+// 啟動即寫一次 heartbeat,避免 server /readyz 在 scheduler 第一次 cron tick 前回 503
+try {
+  heartbeatRepo.upsert('scheduler');
+} catch (err) {
+  logger.error({ err: err.message }, 'initial heartbeat upsert error');
+}
+
 schedule.scheduleJob('* * * * *', async () => {
   try {
     await pollPendingBookings();
@@ -27,6 +35,11 @@ schedule.scheduleJob('* * * * *', async () => {
     await pollStuckRefunds();
   } catch (err) {
     logger.error({ err: err.message }, 'pollStuckRefunds error');
+  }
+  try {
+    heartbeatRepo.upsert('scheduler');
+  } catch (err) {
+    logger.error({ err: err.message }, 'heartbeat upsert error');
   }
 });
 
@@ -55,7 +68,7 @@ async function pollPendingBookings() {
       retry: b.retryCount,
       max_retries: b.maxRetries,
     }, 'run booking');
-    runBooking(b.id).catch(err => logger.error({ booking_id: b.id, err: err.message }, 'run booking error'));
+    runBooking(b.id, logger).catch(err => logger.error({ booking_id: b.id, err: err.message }, 'run booking error'));
   }
 
   // 精準排程：未來 LOOKAHEAD_MS 內即將到期的 pending
@@ -83,7 +96,7 @@ function scheduleFutureBookings() {
       scheduledIds.delete(b.id);
       logger.info({ booking_id: b.id }, 'precise-run');
       // runBooking 內部 tryClaimBooking atomic CAS，已取消或重複觸發會自動 skip
-      runBooking(b.id).catch(err => logger.error({ booking_id: b.id, err: err.message }, 'precise-run error'));
+      runBooking(b.id, logger).catch(err => logger.error({ booking_id: b.id, err: err.message }, 'precise-run error'));
     }, delay);
   }
 }
