@@ -48,4 +48,38 @@ async function pushText(text) {
   }
 }
 
-module.exports = { pushText };
+// 訂票終態通知 helper:從 booking row 組訊息再呼叫 pushText。
+// success 與 failure 兩條格式分流;訊息不含 passenger 姓名(PII)。
+//
+// reason 來自 THSRC HTML 解析 / catch err.message,可能帶 control char 或超長字串
+// → 先去除 control char + 截到 200 字,避免吃掉訊息頭
+function _sanitizeReason(reason) {
+  if (!reason) return null;
+  // 去除 ASCII control chars(\x00-\x1f \x7f),保留中文/全形
+  const clean = String(reason).replace(/[\x00-\x1f\x7f]/g, ' ').trim();
+  return clean.length > 200 ? clean.slice(0, 200) + '…' : clean;
+}
+
+async function pushBookingResult(booking, lastFailedAttempt = null) {
+  const isSuccess = booking.status === 'success';
+  const lines = isSuccess
+    ? [
+        '✅ [訂票成功]',
+        `路線: ${booking.fromStation} → ${booking.toStation}`,
+        `日期: ${booking.date}`,
+        booking.trainNo ? `車次: ${booking.trainNo}` : null,
+        booking.departTime ? `出發: ${booking.departTime}` : null,
+        booking.ticketNo ? `票號: ${booking.ticketNo}` : null,
+      ]
+    : [
+        '❌ [訂票失敗] 重試耗盡',
+        `路線: ${booking.fromStation} → ${booking.toStation}`,
+        `日期: ${booking.date}`,
+        `重試: ${booking.retryCount ?? 0}/${booking.maxRetries ?? 0}`,
+        lastFailedAttempt?.reason ? `原因: ${_sanitizeReason(lastFailedAttempt.reason)}` : null,
+      ];
+  // 透過 module.exports.pushText 而非閉包 pushText,讓測試能 monkey-patch
+  return module.exports.pushText(lines.filter(Boolean).join('\n'));
+}
+
+module.exports = { pushText, pushBookingResult };

@@ -7,6 +7,8 @@ const bookingRepo = require('../repositories/bookingRepo');
 const passengerRepo = require('../repositories/passengerRepo');
 const { thsrcInit, thsrcGetCaptcha, thsrcQueryTrains, thsrcSubmitBooking, selectBestTrain } = require('../thsrc');
 const metrics = require('../metrics');
+const settingsService = require('./settingsService');
+const lineNotifier = require('./lineNotifier');
 
 const BOOKING_TIMEOUT_MS = 120000;
 
@@ -154,6 +156,13 @@ async function _doBooking(bookingId, booking, log) {
     bookingRepo.createAttempt({ bookingId, success: true, reason: null });
     metrics.bookingStatusTotal.inc({ status: 'success' });
     log.info({ ticket_no: result.ticketNo }, '訂票成功');
+    // 訂票成功通知 — fire-and-forget;status 才剛 update,需 re-fetch 拿最新 row
+    if (settingsService.isBookingSuccessNotifyEnabled()) {
+      const fresh = bookingRepo.getById(bookingId);
+      lineNotifier.pushBookingResult(fresh).then(r => {
+        if (!r.ok) log.warn({ reason: r.reason }, '訂票成功通知 push 失敗');
+      }).catch(err => log.error({ err: err.message }, '訂票成功通知 unexpected error'));
+    }
     return true;
   } else {
     handleRetry(booking, result.error, log);
@@ -171,6 +180,14 @@ function handleRetry(booking, reason, log) {
     bookingRepo.updateFields(booking.id, { status: CONFIG.BOOKING_STATUS.FAILED });
     metrics.bookingStatusTotal.inc({ status: 'failed' });
     childLog.warn('booking failed after max retries');
+    // 訂票失敗通知 — fire-and-forget;re-fetch 拿最新 row + 最後一筆失敗 reason
+    if (settingsService.isBookingFailureNotifyEnabled()) {
+      const fresh = bookingRepo.getById(booking.id);
+      const lastAttempt = bookingRepo.getLastFailedAttempt(booking.id);
+      lineNotifier.pushBookingResult(fresh, lastAttempt).then(r => {
+        if (!r.ok) childLog.warn({ reason: r.reason }, '訂票失敗通知 push 失敗');
+      }).catch(err => childLog.error({ err: err.message }, '訂票失敗通知 unexpected error'));
+    }
   } else {
     metrics.bookingStatusTotal.inc({ status: 'retrying' });
     const waitValue = booking.retryWaitValue ?? CONFIG.RETRY_WAIT_MINUTES;

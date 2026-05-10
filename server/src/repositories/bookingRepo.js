@@ -133,6 +133,15 @@ function createAttempt({ bookingId, success, reason }) {
   return { success: true, id };
 }
 
+// 取最後一筆失敗 attempt — 用於失敗通知時帶最新 reason
+function getLastFailedAttempt(bookingId) {
+  return _toCamel(getDb().prepare(`
+    SELECT id, attempted_at, reason FROM booking_attempts
+    WHERE booking_id = ? AND success = 0
+    ORDER BY attempted_at DESC LIMIT 1
+  `).get(bookingId));
+}
+
 function getAttemptsByBookingId(bookingId) {
   return getDb().prepare(`
     SELECT * FROM booking_attempts WHERE booking_id = ? ORDER BY attempted_at ASC
@@ -150,5 +159,5 @@ function countByStatus() {
 module.exports = {
   getAll, getById, create, updateFields, deleteById,
   getPending, getAllOverduePending, getPendingWithin, tryClaimBooking, cancelIfPending, getStuckRunning, getStuckRefunding,
-  createAttempt, getAttemptsByBookingId, countByStatus,
+  createAttempt, getAttemptsByBookingId, getLastFailedAttempt, countByStatus,
 };
