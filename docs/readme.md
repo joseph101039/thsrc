@@ -362,7 +362,8 @@ gcloud compute ssh instance-20260427-141455 --zone=us-west1-b --project=sincere-
 | **Docker Hub images** | `joseph50804/thsrc-server:latest`、`joseph50804/captcha-solver:latest` | 兩個 service image,watchtower 5 分鐘自動 pull | `server/deploy-server.sh`、`captcha/apiserver/deploy-gce.sh` |
 | **Watchtower** | `nickfedor/watchtower:latest`,`--interval 300` | VM 上自動 pull 新 image;原 `containrrr/watchtower` 已 archived 改用 active fork | `docker-compose.yml` |
 | **Grafana Alloy** | `grafana/alloy:v1.16.1`,docker compose service `alloy`,內網跑(不對外開 port) | scrape `server:8081/metrics` 與 `scheduler:8082/metrics`,remote_write 推到 Grafana Cloud | `alloy/config.alloy`、`docs/runbooks/setup-grafana-cloud.md` |
-| **Grafana Cloud** | Stack `joseph101039`,URL `https://joseph101039.grafana.net/`,region us-west,免費方案 10K active series / 14 天保留 | Hosted Prometheus 接收 alloy 推送的指標;Explore + Dashboard 視覺化 | `docs/runbooks/setup-grafana-cloud.md`、`docs/dashboards/thsrc-overview.json`(初始 dashboard) |
+| **Grafana Cloud** | Stack `joseph101039`,URL `https://joseph101039.grafana.net/`,region us-west,免費方案 10K active series / 14 天保留 | Hosted Prometheus 接收 alloy 推送的指標;Explore + Dashboard 視覺化;Alerting 規則 | `docs/runbooks/setup-grafana-cloud.md`、`docs/dashboards/thsrc-overview.json`(初始 dashboard) |
+| **LINE Messaging API** | Channel `thsrc-alerts`,推送目標為個人 user ID(`LINE_USER_ID`),免費方案 200 通/月 | Alert 推送通道;Grafana Cloud Alerting 觸發 webhook → server → LINE push;backup-db.sh 失敗時也走同路徑 | `docs/runbooks/setup-line-bot.md` |
 
 ### 觀測性(Metrics / Dashboard / Explore)
 
@@ -390,9 +391,30 @@ gcloud compute ssh instance-20260427-141455 --zone=us-west1-b --project=sincere-
 |---|---|---|
 | `server:8081/metrics`(對外 8081 已開,但 /metrics 走 token) | docker internal + 外部 | `Authorization: Bearer $METRICS_TOKEN`(timingSafeEqual 比較) |
 | `scheduler:8082/metrics` | 僅 docker internal(compose 不發佈) | 同 token |
+| `server:8081/alerts/grafana`(POST) | 對外(Grafana Cloud Alerting webhook) | `Authorization: Bearer $ALERT_WEBHOOK_TOKEN`(timingSafeEqual 比較) |
 | Grafana Cloud remote_write | Alloy 透過 basic auth | `GRAFANA_PROM_USER` + `GRAFANA_PROM_TOKEN` |
+| LINE Messaging API push | 對外,server 端 outbound | `Authorization: Bearer $LINE_CHANNEL_ACCESS_TOKEN`(LINE 端 token) |
 
-> Token 同時保護兩個 `/metrics` 端點。Rotate 時 `.env` 內 `METRICS_TOKEN` 改完要 `docker compose up -d server scheduler alloy` 三個一起 restart。
+> `METRICS_TOKEN` 同時保護兩個 `/metrics` 端點。Rotate 時 `.env` 改完要 `docker compose up -d server scheduler alloy` restart。
+> `ALERT_WEBHOOK_TOKEN` 改完要同步更新 Grafana Cloud Alerting 的 contact point header 才能繼續通。
+
+#### Alert 流程
+
+```
+Grafana Cloud Alerting 規則觸發(metric 超過閾值)
+   ↓ webhook contact point: POST https://api.joseph101039.uk/alerts/grafana
+   ↓                        Authorization: Bearer $ALERT_WEBHOOK_TOKEN
+server:/alerts/grafana → alertDispatcher.handleWebhook(payload)
+   ↓ 對每個 alert:
+   ↓   - alert_state 表查 last_status / last_sent_at
+   ↓   - 30min dedup(firing 已推過且狀態未變 → skip)
+   ↓   - 狀態變化(firing↔resolved)即時推
+   ↓ pushText() → LINE Messaging API(免費 200 通/月)
+   ↓
+你的 LINE 收到「🔥 [Firing] alertname」或「✅ [Resolved] alertname」
+```
+
+backup-db.sh 失敗時走同一條 LINE push,但**不經過 server**(直接 docker exec 進 server container 用 curl 打 LINE API),避免循環依賴(server 自己掛了 backup 還是要能告警)。
 
 ---
 
