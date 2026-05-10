@@ -109,12 +109,12 @@
     },
     {
       "type": "timeseries",
-      "title": "Process memory (RSS)",
+      "title": "Process memory RSS (server / scheduler)",
       "id": 7,
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
       "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
       "targets": [
-        { "expr": "thsrc_process_resident_memory_bytes", "refId": "A" }
+        { "expr": "thsrc_process_resident_memory_bytes", "legendFormat": "{{job}}", "refId": "A" }
       ],
       "fieldConfig": { "defaults": { "unit": "bytes" } }
     }

@@ -361,6 +361,40 @@ gcloud compute ssh instance-20260427-141455 --zone=us-west1-b --project=sincere-
 | **Cron(VM host)** | `/etc/cron.d/thsrc-backup`,daily 19:00 UTC(台灣 03:00) | 觸發 backup-db.sh,log → `/var/log/thsrc-backup.log` | `scripts/install-backup-cron.sh`(安裝) |
 | **Docker Hub images** | `joseph50804/thsrc-server:latest`、`joseph50804/captcha-solver:latest` | 兩個 service image,watchtower 5 分鐘自動 pull | `server/deploy-server.sh`、`captcha/apiserver/deploy-gce.sh` |
 | **Watchtower** | `nickfedor/watchtower:latest`,`--interval 300` | VM 上自動 pull 新 image;原 `containrrr/watchtower` 已 archived 改用 active fork | `docker-compose.yml` |
+| **Grafana Alloy** | `grafana/alloy:v1.16.1`,docker compose service `alloy`,內網跑(不對外開 port) | scrape `server:8081/metrics` 與 `scheduler:8082/metrics`,remote_write 推到 Grafana Cloud | `alloy/config.alloy`、`docs/runbooks/setup-grafana-cloud.md` |
+| **Grafana Cloud** | Stack `joseph101039`,URL `https://joseph101039.grafana.net/`,region us-west,免費方案 10K active series / 14 天保留 | Hosted Prometheus 接收 alloy 推送的指標;Explore + Dashboard 視覺化 | `docs/runbooks/setup-grafana-cloud.md`、`docs/dashboards/thsrc-overview.json`(初始 dashboard) |
+
+### 觀測性(Metrics / Dashboard / Explore)
+
+- **Grafana 入口**:https://joseph101039.grafana.net/
+- **Explore**(臨時查詢):https://joseph101039.grafana.net/explore — data source 選 `grafanacloud-joseph101039-prom`
+- **Dashboard JSON**:`docs/dashboards/thsrc-overview.json`(初始模板,匯入後可在 UI 直接編輯)
+- **Setup runbook**:`docs/runbooks/setup-grafana-cloud.md`(註冊 / 拿 token / `.env` / `scp` 推到 VM / 匯入 dashboard / token 輪替)
+
+#### 指標清單(prefix `thsrc_`)
+
+| 名稱 | 類型 | 來源 process | label | 用途 |
+|---|---|---|---|---|
+| `thsrc_http_requests_total` | Counter | server (8081) | method / route / status | HTTP rate by status |
+| `thsrc_http_request_duration_seconds` | Histogram | server | method / route / status | 延遲 p50/p95/p99 |
+| `thsrc_booking_pending` | Gauge | server(15s sample) | — | 當前 pending booking 筆數 |
+| `thsrc_booking_running` | Gauge | server(15s sample) | — | 當前 running booking 筆數 |
+| `thsrc_booking_status_total` | Counter | scheduler (8082) | status(success / failed / retrying) | 訂票結果累計 |
+| `thsrc_booking_duration_seconds` | Histogram | scheduler | outcome | 一筆訂票從 runBooking 到結束耗時 |
+| `thsrc_captcha_solve_duration_seconds` | Histogram | scheduler | result(ok / error) | captcha solver API 回應時間 |
+| `thsrc_process_*` / `thsrc_nodejs_*` | 多 | server + scheduler(各自獨立 process,以 `{job=}` 區分) | `job=thsrc-server` / `thsrc-scheduler` | RSS、heap、event loop lag、GC、handles(prom-client default) |
+
+#### 端點與 token
+
+| 端點 | 開放範圍 | Auth |
+|---|---|---|
+| `server:8081/metrics`(對外 8081 已開,但 /metrics 走 token) | docker internal + 外部 | `Authorization: Bearer $METRICS_TOKEN`(timingSafeEqual 比較) |
+| `scheduler:8082/metrics` | 僅 docker internal(compose 不發佈) | 同 token |
+| Grafana Cloud remote_write | Alloy 透過 basic auth | `GRAFANA_PROM_USER` + `GRAFANA_PROM_TOKEN` |
+
+> Token 同時保護兩個 `/metrics` 端點。Rotate 時 `.env` 內 `METRICS_TOKEN` 改完要 `docker compose up -d server scheduler alloy` 三個一起 restart。
+
+---
 
 ### 常用維運操作
 
@@ -381,4 +415,11 @@ gcloud compute ssh instance-20260427-141455 --zone=us-west1-b --project=sincere-
   --command="tail -50 /var/log/thsrc-backup.log"
 
 # 還原:見 docs/runbooks/restore-db.md
+
+# 看 alloy 是否成功推資料到 Grafana Cloud(VM 上)
+gcloud compute ssh instance-20260427-141455 --zone=us-west1-b --project=sincere-office-494609-m3 \
+  --command="docker logs joseph-alloy-1 --tail=50 | grep -iE 'error|push|sent samples|401|403'"
+
+# 確認 server /metrics 端點(本機帶 token)
+curl -H "Authorization: Bearer $METRICS_TOKEN" https://api.joseph101039.uk/metrics | head -20
 ```
