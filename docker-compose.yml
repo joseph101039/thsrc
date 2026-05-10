@@ -44,6 +44,23 @@ services:
       retries: 2
       start_period: 10s
 
+  alloy:
+    # Grafana Alloy:scrape server:8081 / scheduler:8082 /metrics → remote_write 到 Grafana Cloud
+    # 走 internal docker network,不對外開 port
+    # 釘版號避免 alloy major 升版意外 break;升版時手動測試後再 bump
+    image: grafana/alloy:v1.16.1
+    volumes:
+      - ./alloy/config.alloy:/etc/alloy/config.alloy:ro
+    command:
+      - run
+      - /etc/alloy/config.alloy
+      - --storage.path=/var/lib/alloy/data
+    env_file: .env
+    restart: unless-stopped
+    depends_on:
+      - server
+      - scheduler
+
   watchtower:
     # containrrr/watchtower 已 archived (2024)；改用社群 active fork
     # nickfedor/watchtower 與原版 CLI/設定完全相容,且支援現代 Docker API

@@ -6,6 +6,7 @@ const CONFIG = require('../config');
 const bookingRepo = require('../repositories/bookingRepo');
 const passengerRepo = require('../repositories/passengerRepo');
 const { thsrcInit, thsrcGetCaptcha, thsrcQueryTrains, thsrcSubmitBooking, selectBestTrain } = require('../thsrc');
+const metrics = require('../metrics');
 
 const BOOKING_TIMEOUT_MS = 120000;
 
@@ -28,9 +29,13 @@ async function runBooking(bookingId, parentLog) {
     setTimeout(() => reject(new Error('訂票逾時（120秒）')), BOOKING_TIMEOUT_MS)
   );
 
+  // outcome 由 _doBooking 透過回傳 boolean 通知;throw / retry 路徑都算 failed
+  const endTimer = metrics.bookingDuration.startTimer();
   try {
-    await Promise.race([_doBooking(bookingId, booking, log), timeout]);
+    const ok = await Promise.race([_doBooking(bookingId, booking, log), timeout]);
+    endTimer({ outcome: ok ? 'success' : 'failed' });
   } catch (err) {
+    endTimer({ outcome: 'failed' });
     log.error({ err: err.message }, 'runBooking error');
     return handleRetry(booking, err.message, log);
   }
@@ -46,13 +51,24 @@ async function _doBooking(bookingId, booking, log) {
   log.info({ captcha_b64_len: captchaBase64.length }, '[2/5] done');
 
   log.info({ url: CONFIG.CAPTCHA_API_URL + '/solve' }, '[3/5] solving captcha');
-  const captchaRes = await fetch(CONFIG.CAPTCHA_API_URL + '/solve', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ image: captchaBase64 }),
-  });
-  const captchaJson = await captchaRes.json();
-  if (!captchaJson.answer) throw new Error('驗證碼辨識失敗：' + (captchaJson.detail || JSON.stringify(captchaJson)));
+  const endCaptchaTimer = metrics.captchaSolveDuration.startTimer();
+  let captchaJson;
+  try {
+    const captchaRes = await fetch(CONFIG.CAPTCHA_API_URL + '/solve', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ image: captchaBase64 }),
+    });
+    captchaJson = await captchaRes.json();
+  } catch (err) {
+    endCaptchaTimer({ result: 'error' });
+    throw err;
+  }
+  if (!captchaJson.answer) {
+    endCaptchaTimer({ result: 'error' });
+    throw new Error('驗證碼辨識失敗：' + (captchaJson.detail || JSON.stringify(captchaJson)));
+  }
+  endCaptchaTimer({ result: 'ok' });
   const captchaAnswer = captchaJson.answer;
   log.debug({
     answer: captchaAnswer,
@@ -86,10 +102,12 @@ async function _doBooking(bookingId, booking, log) {
 
   // 車次模式：S1 直接回傳 S3 — trains 為空陣列，但 s2FormAction（實為 S3 URL）存在則繼續
   if (!isDirectS3 && trains.length === 0) {
-    return handleRetry(booking, '無可用班次', log);
+    handleRetry(booking, '無可用班次', log);
+    return false;
   }
   if (!s2FormAction) {
-    return handleRetry(booking, '無可用班次', log);
+    handleRetry(booking, '無可用班次', log);
+    return false;
   }
 
   // 車次模式：trainNo 為 booking.trainNoTarget，radioValue 在直接 S3 時不使用
@@ -134,9 +152,12 @@ async function _doBooking(bookingId, booking, log) {
       departTime: isDirectS3 ? null : bestTrain.departTime,
     });
     bookingRepo.createAttempt({ bookingId, success: true, reason: null });
+    metrics.bookingStatusTotal.inc({ status: 'success' });
     log.info({ ticket_no: result.ticketNo }, '訂票成功');
+    return true;
   } else {
-    return handleRetry(booking, result.error, log);
+    handleRetry(booking, result.error, log);
+    return false;
   }
 }
 
@@ -148,8 +169,10 @@ function handleRetry(booking, reason, log) {
 
   if (newRetryCount >= booking.maxRetries) {
     bookingRepo.updateFields(booking.id, { status: CONFIG.BOOKING_STATUS.FAILED });
+    metrics.bookingStatusTotal.inc({ status: 'failed' });
     childLog.warn('booking failed after max retries');
   } else {
+    metrics.bookingStatusTotal.inc({ status: 'retrying' });
     const waitValue = booking.retryWaitValue ?? CONFIG.RETRY_WAIT_MINUTES;
     const waitUnit  = booking.retryWaitUnit  ?? 'minute';
     const waitMs    = waitUnit === 'second' ? waitValue * 1000 : waitValue * 60 * 1000;
