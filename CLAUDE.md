@@ -56,7 +56,13 @@ docker-compose up -d --build
 
 ```bash
 # 1. Backend Docker image (VM watchtower auto-pulls every 5 minutes)
+#    Defaults to PATCH bump; use 'minor' for new features, 'major' for breaking change.
+#    Script enforces clean working tree + main branch; preview via DRY_RUN=1.
+#    See docs/runbooks/deploy-server.md for SemVer rules and docs/runbooks/rollback-server.md for rollback.
 DOCKERHUB_USER=joseph50804 bash server/deploy-server.sh
+DOCKERHUB_USER=joseph50804 bash server/deploy-server.sh minor    # new feature
+DOCKERHUB_USER=joseph50804 bash server/deploy-server.sh major    # breaking change
+DRY_RUN=1 bash server/deploy-server.sh minor                     # preview NEXT tag
 
 # 2. Captcha solver image (only if solver needs updating)
 DOCKERHUB_USER=joseph50804 ./captcha/apiserver/deploy-gce.sh
