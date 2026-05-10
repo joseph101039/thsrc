@@ -11,6 +11,7 @@ const requestLogger = require('./middlewares/requestLogger');
 const metricsMiddleware = require('./middlewares/metricsMiddleware');
 const metricsRouter = require('./routes/metrics');
 const healthRouter = require('./routes/health');
+const alertsRouter = require('./routes/alerts');
 const adminRouter = require('./admin/router');
 const bookingRepo = require('./repositories/bookingRepo');
 const metrics = require('./metrics');
@@ -35,6 +36,7 @@ app.use(metricsMiddleware);
 
 app.use('/', healthRouter);
 app.use('/', metricsRouter);
+app.use('/', alertsRouter);
 app.get('/', (req, res) => res.json({ status: 'ok' }));
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 app.use('/v1', v1Router);

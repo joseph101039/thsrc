@@ -26,9 +26,43 @@ HOST_TMP="$(mktemp -d)"
 
 log() { echo "$(date -u +%FT%TZ) $*"; }
 
+# LINE push — 用 docker exec 透過 server container 取 LINE_CHANNEL_ACCESS_TOKEN
+# 與 LINE_USER_ID env(避免 host 端讀 .env 增加表面積)。
+# 失敗本身不應再 abort backup,所以全部 || true。
+#
+# 注意:能 docker exec 進 server container 的人都能 env | grep 拿到 LINE token
+# 與 ALERT_WEBHOOK_TOKEN(docker socket 信任模型)。在 GCE VM 上只有你 SSH 可達,
+# 風險可控。runbook 的 "8. 異常處理" 段落已說明此事。
+#
+# 用 node 構建 JSON 而非 printf 拼字串 — 避免 hostname/錯誤訊息含 " 或 \ 時破壞 JSON。
+# Server container 內已有 node,不需要額外裝 jq。
+line_push() {
+  local text="$1"
+  # MSG 用 -e 透過 docker exec 傳給 container,完全避開 shell 引號處理;
+  # node 內用 JSON.stringify 構建 body,任何 " \ 換行都會被正確 escape。
+  docker exec -e MSG="${text}" "${CONTAINER}" sh -c '
+    [ -n "${LINE_CHANNEL_ACCESS_TOKEN:-}" ] && [ -n "${LINE_USER_ID:-}" ] || exit 0
+    body=$(node -e "
+      const text = process.env.MSG;
+      const userId = process.env.LINE_USER_ID;
+      const safe = text.length > 4900 ? text.slice(0, 4900) + \"…(truncated)\" : text;
+      process.stdout.write(JSON.stringify({to: userId, messages: [{type: \"text\", text: safe}]}));
+    ")
+    curl -sS -m 10 -X POST https://api.line.me/v2/bot/message/push \
+      -H "Authorization: Bearer ${LINE_CHANNEL_ACCESS_TOKEN}" \
+      -H "Content-Type: application/json" \
+      --data "$body" >/dev/null || true
+  ' 2>/dev/null < /dev/null
+  return 0
+}
+
 cleanup() {
+  local rc=$?
   rm -rf "${HOST_TMP}"
   docker exec "${CONTAINER}" rm -f "${SNAPSHOT_IN_CONTAINER}" 2>/dev/null || true
+  if [ "${rc}" -ne 0 ]; then
+    line_push "🔥 [backup-db] $(hostname) backup failed (rc=${rc}); 看 /var/log/thsrc-backup.log"
+  fi
 }
 trap cleanup EXIT
 

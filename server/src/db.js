@@ -79,6 +79,16 @@ function _initSchema(db) {
       component      TEXT PRIMARY KEY,
       last_seen_at   TEXT NOT NULL
     );
+
+    -- Alert dispatcher 用 — 對每個 alert_key 記錄上次 firing/resolved 的時間,
+    -- 給 30 分鐘 dedup 邏輯使用,server 重啟仍然保持節流狀態。
+    -- last_sent_at 兼作 conditional UPDATE 的樂觀鎖(避免並發 webhook 雙推)。
+    CREATE TABLE IF NOT EXISTS alert_state (
+      alert_key       TEXT PRIMARY KEY,        -- Grafana payload labels 雜湊出的穩定 key
+      last_status     TEXT NOT NULL,            -- firing | resolved
+      last_seen_at    TEXT NOT NULL,            -- 最後一次收到此 key 的 webhook 時間
+      last_sent_at    TEXT                      -- 最後一次 LINE push 成功時間;NULL 表示從未推送
+    );
   `);
 }
 
