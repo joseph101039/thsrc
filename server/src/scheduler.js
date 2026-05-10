@@ -7,6 +7,46 @@ const { runBooking } = require('./services/bookingEngineService');
 const { runRefund } = require('./services/refundEngineService');
 const heartbeatRepo = require('./repositories/heartbeatRepo');
 const logger = require('./logger').child({ component: 'scheduler' });
+const metrics = require('./metrics');
+const { compareBearer } = require('./middlewares/bearerAuth');
+const http = require('node:http');
+
+// 暴露 /metrics 給 Alloy scrape — 與 server process 是不同 prom-client registry,
+// 必須各自獨立暴露,否則 booking duration / captcha 等在 scheduler 累積的指標
+// 永遠回不到 Grafana Cloud。Port 預設 8082,只 bind 在 docker internal network
+// (compose 不發佈這個 port);Alloy 透過 service 名稱 scheduler:8082 連線。
+const METRICS_PORT = parseInt(process.env.SCHEDULER_METRICS_PORT || '8082', 10);
+const METRICS_TOKEN = process.env.METRICS_TOKEN;
+if (!METRICS_TOKEN) {
+  logger.warn('METRICS_TOKEN 未設定,scheduler /metrics 將回 503');
+}
+const metricsServer = http.createServer(async (req, res) => {
+  if (req.url !== '/metrics') {
+    res.writeHead(404).end();
+    return;
+  }
+  if (!METRICS_TOKEN) {
+    res.writeHead(503).end();
+    return;
+  }
+  if (!compareBearer(req.headers.authorization, METRICS_TOKEN)) {
+    res.writeHead(401).end();
+    return;
+  }
+  try {
+    res.writeHead(200, { 'Content-Type': metrics.register.contentType });
+    res.end(await metrics.register.metrics());
+  } catch (err) {
+    logger.error({ err: err.message }, 'scheduler metrics render error');
+    res.writeHead(500).end();
+  }
+});
+metricsServer.on('error', (err) => {
+  logger.error({ err: err.message, port: METRICS_PORT }, 'scheduler metrics server error');
+});
+metricsServer.listen(METRICS_PORT, () => {
+  logger.info({ port: METRICS_PORT }, 'scheduler metrics endpoint listening');
+});
 
 // 提前多少毫秒排入 setTimeout（讓 runBooking 在 scheduled_at 前開始準備）
 const SCHEDULE_AHEAD_MS = 2 * 60 * 1000; // 2 分鐘

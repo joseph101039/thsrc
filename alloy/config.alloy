@@ -1,0 +1,73 @@
+// Grafana Alloy config — scrape thsrc-server /metrics 並透過 remote_write
+// 推到 Grafana Cloud Hosted Prometheus。
+//
+// 環境變數(由 docker-compose env_file 注入):
+//   GRAFANA_PROM_URL    e.g. https://prometheus-prod-XX.grafana.net/api/prom/push
+//   GRAFANA_PROM_USER   instance ID(純數字)
+//   GRAFANA_PROM_TOKEN  Grafana Cloud token(glc_...)
+//   METRICS_TOKEN       本機 server 的 /metrics Bearer token
+//
+// 設計取捨:
+// - scrape server (8081) 與 scheduler (8082) 兩個 process,不收 host / cAdvisor
+//   (P1 階段先求穩,active series 控制在 200 內,Grafana Cloud free tier 充裕)
+// - external_labels 加 env=prod / cluster=gce-uswest1 方便未來 multi-env 使用
+// - scrape interval 15s — Grafana Cloud free tier 建議節奏
+
+prometheus.scrape "thsrc_server" {
+  targets = [
+    {
+      __address__ = "server:8081",
+      job         = "thsrc-server",
+      instance    = "gce-uswest1",
+    },
+  ]
+  metrics_path    = "/metrics"
+  scrape_interval = "15s"
+  scrape_timeout  = "10s"
+
+  // Bearer token 帶入 server 的 /metrics
+  authorization {
+    type        = "Bearer"
+    credentials = sys.env("METRICS_TOKEN")
+  }
+
+  forward_to = [prometheus.remote_write.grafana_cloud.receiver]
+}
+
+// Scheduler 是獨立 process(自己的 prom-client registry),
+// booking duration / captcha solve / status counter 都在它身上 — 必須單獨 scrape
+prometheus.scrape "thsrc_scheduler" {
+  targets = [
+    {
+      __address__ = "scheduler:8082",
+      job         = "thsrc-scheduler",
+      instance    = "gce-uswest1",
+    },
+  ]
+  metrics_path    = "/metrics"
+  scrape_interval = "15s"
+  scrape_timeout  = "10s"
+
+  authorization {
+    type        = "Bearer"
+    credentials = sys.env("METRICS_TOKEN")
+  }
+
+  forward_to = [prometheus.remote_write.grafana_cloud.receiver]
+}
+
+prometheus.remote_write "grafana_cloud" {
+  endpoint {
+    url = sys.env("GRAFANA_PROM_URL")
+
+    basic_auth {
+      username = sys.env("GRAFANA_PROM_USER")
+      password = sys.env("GRAFANA_PROM_TOKEN")
+    }
+  }
+
+  external_labels = {
+    env     = "prod",
+    cluster = "gce-uswest1",
+  }
+}

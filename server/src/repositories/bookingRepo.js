@@ -139,8 +139,16 @@ function getAttemptsByBookingId(bookingId) {
   `).all(bookingId).map(_toCamel);
 }
 
+// 給 metrics gauge sample 用 — 回 { pending: N, running: N, success: N, failed: N, ... }
+function countByStatus() {
+  const rows = getDb().prepare(`SELECT status, COUNT(*) AS n FROM bookings GROUP BY status`).all();
+  const out = {};
+  for (const r of rows) out[r.status] = r.n;
+  return out;
+}
+
 module.exports = {
   getAll, getById, create, updateFields, deleteById,
   getPending, getAllOverduePending, getPendingWithin, tryClaimBooking, cancelIfPending, getStuckRunning, getStuckRefunding,
-  createAttempt, getAttemptsByBookingId,
+  createAttempt, getAttemptsByBookingId, countByStatus,
 };
