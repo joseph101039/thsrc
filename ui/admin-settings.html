@@ -8,20 +8,26 @@
   <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
   <style>
     .settings-section { background:white; border-radius:12px; padding:20px; margin-bottom:16px; }
-    .settings-section h2 { font-size:16px; font-weight:600; margin:0 0 12px 0; color:#333; }
-    .toggle-row { display:flex; align-items:center; justify-content:space-between; padding:10px 0; border-bottom:1px solid #eee; }
+    .settings-section h2 { font-size:16px; font-weight:600; margin:0 0 12px 0; color:#333; display:flex; justify-content:space-between; align-items:center; }
+    .toggle-row { display:flex; align-items:center; justify-content:space-between; padding:10px 0; border-bottom:1px solid #eee; gap:12px; }
     .toggle-row:last-child { border-bottom:none; }
-    .toggle-label { flex:1; }
-    .toggle-label .title { font-size:14px; font-weight:500; }
-    .toggle-label .desc { font-size:12px; color:#888; margin-top:2px; }
-    .switch { position:relative; width:48px; height:28px; }
+    .toggle-label { flex:1; min-width:0; }
+    .toggle-label .title { font-size:14px; font-weight:500; word-break:break-all; }
+    .toggle-label .desc { font-size:12px; color:#888; margin-top:2px; line-height:1.5; }
+    .toggle-label .meta { font-size:11px; color:#aaa; margin-top:2px; }
+    .switch { position:relative; width:48px; height:28px; flex-shrink:0; }
     .switch input { opacity:0; width:0; height:0; }
     .slider { position:absolute; cursor:pointer; inset:0; background:#ccc; border-radius:28px; transition:.2s; }
     .slider::before { position:absolute; content:""; height:20px; width:20px; left:4px; bottom:4px; background:white; border-radius:50%; transition:.2s; }
     .switch input:checked + .slider { background:#4caf50; }
     .switch input:checked + .slider::before { transform:translateX(20px); }
     .switch input:disabled + .slider { opacity:0.5; cursor:not-allowed; }
-    #toast { position:fixed; bottom:80px; left:50%; transform:translateX(-50%); background:#333; color:white; padding:8px 16px; border-radius:20px; font-size:13px; opacity:0; transition:opacity .2s; pointer-events:none; }
+    .badge { display:inline-block; padding:1px 6px; border-radius:8px; font-size:10px; font-weight:600; margin-left:4px; vertical-align:middle; }
+    .badge-paused { background:#fde68a; color:#92400e; }
+    .badge-active { background:#bbf7d0; color:#15803d; }
+    .refresh-btn { background:none; border:none; color:#4caf50; font-size:13px; cursor:pointer; padding:2px 6px; }
+    .section-error { font-size:12px; color:#c00; padding:8px 0; }
+    #toast { position:fixed; bottom:80px; left:50%; transform:translateX(-50%); background:#333; color:white; padding:8px 16px; border-radius:20px; font-size:13px; opacity:0; transition:opacity .2s; pointer-events:none; max-width:80%; }
     #toast.show { opacity:1; }
   </style>
 </head>
@@ -34,17 +40,18 @@
   </header>
 
   <main class="page-content">
+    <!-- 訂票通知 (LINE) -->
     <div class="settings-section">
       <h2>訂票通知 (LINE)</h2>
-      <div id="loading" class="loading">載入中...</div>
-      <div id="toggles" style="display:none;">
+      <div id="notify-loading" class="loading">載入中...</div>
+      <div id="notify-toggles" style="display:none;">
         <div class="toggle-row">
           <div class="toggle-label">
             <div class="title">訂票成功通知</div>
             <div class="desc">訂票成功時推送 LINE</div>
           </div>
           <label class="switch">
-            <input type="checkbox" id="toggle-success" onchange="onToggleChange('bookingSuccess', this)">
+            <input type="checkbox" id="toggle-success" onchange="onNotifyChange('bookingSuccess', this)">
             <span class="slider"></span>
           </label>
         </div>
@@ -54,11 +61,24 @@
             <div class="desc">重試耗盡仍失敗時推送 LINE,含失敗原因</div>
           </div>
           <label class="switch">
-            <input type="checkbox" id="toggle-failure" onchange="onToggleChange('bookingFailure', this)">
+            <input type="checkbox" id="toggle-failure" onchange="onNotifyChange('bookingFailure', this)">
             <span class="slider"></span>
           </label>
         </div>
       </div>
+    </div>
+
+    <!-- 告警規則 (Grafana) -->
+    <div class="settings-section">
+      <h2>
+        <span>告警規則 (Grafana)</span>
+        <button class="refresh-btn" onclick="loadAlerts()">↻ 重整</button>
+      </h2>
+      <div style="font-size:12px;color:#888;margin-bottom:8px;">啟用 = Grafana 持續評估;停用 = 暫停評估不送 LINE</div>
+      <div id="alerts-loading" class="loading">載入中...</div>
+      <div id="alerts-list" style="display:none;"></div>
+      <div id="alerts-empty" style="display:none;font-size:13px;color:#888;padding:8px 0;">尚未設定任何告警規則</div>
+      <div id="alerts-error" class="section-error" style="display:none;"></div>
     </div>
   </main>
 
@@ -96,7 +116,8 @@
       if (navAdmin) navAdmin.hidden = false;
       var navSet = document.getElementById('nav-admin-settings');
       if (navSet) navSet.hidden = false;
-      loadSettings();
+      loadNotifySettings();
+      loadAlerts();
     });
   </script>
 </body>
