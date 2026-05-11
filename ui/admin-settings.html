@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>系統設定</title>
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
+  <style>
+    .settings-section { background:white; border-radius:12px; padding:20px; margin-bottom:16px; }
+    .settings-section h2 { font-size:16px; font-weight:600; margin:0 0 12px 0; color:#333; }
+    .toggle-row { display:flex; align-items:center; justify-content:space-between; padding:10px 0; border-bottom:1px solid #eee; }
+    .toggle-row:last-child { border-bottom:none; }
+    .toggle-label { flex:1; }
+    .toggle-label .title { font-size:14px; font-weight:500; }
+    .toggle-label .desc { font-size:12px; color:#888; margin-top:2px; }
+    .switch { position:relative; width:48px; height:28px; }
+    .switch input { opacity:0; width:0; height:0; }
+    .slider { position:absolute; cursor:pointer; inset:0; background:#ccc; border-radius:28px; transition:.2s; }
+    .slider::before { position:absolute; content:""; height:20px; width:20px; left:4px; bottom:4px; background:white; border-radius:50%; transition:.2s; }
+    .switch input:checked + .slider { background:#4caf50; }
+    .switch input:checked + .slider::before { transform:translateX(20px); }
+    .switch input:disabled + .slider { opacity:0.5; cursor:not-allowed; }
+    #toast { position:fixed; bottom:80px; left:50%; transform:translateX(-50%); background:#333; color:white; padding:8px 16px; border-radius:20px; font-size:13px; opacity:0; transition:opacity .2s; pointer-events:none; }
+    #toast.show { opacity:1; }
+  </style>
+</head>
+<body>
+  <header class="page-header">
+    <h1>系統設定</h1>
+    <button class="logout-btn" onclick="window.__auth.logout()" title="登出" aria-label="登出">
+      <span class="material-icons">logout</span>
+    </button>
+  </header>
+
+  <main class="page-content">
+    <div class="settings-section">
+      <h2>訂票通知 (LINE)</h2>
+      <div id="loading" class="loading">載入中...</div>
+      <div id="toggles" style="display:none;">
+        <div class="toggle-row">
+          <div class="toggle-label">
+            <div class="title">訂票成功通知</div>
+            <div class="desc">訂票成功時推送 LINE</div>
+          </div>
+          <label class="switch">
+            <input type="checkbox" id="toggle-success" onchange="onToggleChange('bookingSuccess', this)">
+            <span class="slider"></span>
+          </label>
+        </div>
+        <div class="toggle-row">
+          <div class="toggle-label">
+            <div class="title">訂票失敗通知</div>
+            <div class="desc">重試耗盡仍失敗時推送 LINE,含失敗原因</div>
+          </div>
+          <label class="switch">
+            <input type="checkbox" id="toggle-failure" onchange="onToggleChange('bookingFailure', this)">
+            <span class="slider"></span>
+          </label>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <div id="toast"></div>
+
+  <nav class="bottom-nav">
+    <a href="index.html" class="nav-item">
+      <span class="nav-icon">🎫</span>
+      <span>訂票紀錄</span>
+    </a>
+    <a href="passengers.html" class="nav-item">
+      <span class="nav-icon">👤</span>
+      <span>乘客設定</span>
+    </a>
+    <a href="admin.html" class="nav-item" id="nav-admin" hidden>
+      <span class="nav-icon">👥</span>
+      <span>使用者</span>
+    </a>
+    <a href="admin-settings.html" class="nav-item active" id="nav-admin-settings" hidden>
+      <span class="nav-icon">⚙️</span>
+      <span>設定</span>
+    </a>
+  </nav>
+
+  <script src="js/auth.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/admin-settings.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', function () {
+      if (window.__auth.getRole() !== 'admin') {
+        location.href = 'index.html';
+        return;
+      }
+      var navAdmin = document.getElementById('nav-admin');
+      if (navAdmin) navAdmin.hidden = false;
+      var navSet = document.getElementById('nav-admin-settings');
+      if (navSet) navSet.hidden = false;
+      loadSettings();
+    });
+  </script>
+</body>
+</html>

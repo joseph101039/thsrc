@@ -36,6 +36,10 @@
       <span class="nav-icon">👥</span>
       <span>使用者</span>
     </a>
+    <a href="admin-settings.html" class="nav-item" id="nav-admin-settings" hidden>
+      <span class="nav-icon">⚙️</span>
+      <span>設定</span>
+    </a>
   </nav>
 
   <!-- 新增使用者 Modal -->
@@ -71,6 +75,8 @@
       }
       var el = document.getElementById('nav-admin');
       if (el) el.hidden = false;
+      var el2 = document.getElementById('nav-admin-settings');
+      if (el2) el2.hidden = false;
     });
   </script>
 </body>

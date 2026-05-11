@@ -89,6 +89,13 @@ function _initSchema(db) {
       last_seen_at    TEXT NOT NULL,            -- 最後一次收到此 key 的 webhook 時間
       last_sent_at    TEXT                      -- 最後一次 LINE push 成功時間;NULL 表示從未推送
     );
+
+    -- 通用 key-value 設定表 — 後台可改的 toggle / 參數都進這裡
+    CREATE TABLE IF NOT EXISTS settings (
+      key         TEXT PRIMARY KEY,
+      value       TEXT NOT NULL,
+      updated_at  TEXT NOT NULL
+    );
   `);
 }
 
@@ -151,6 +158,14 @@ function _migrate(db) {
       WHERE owner_email = '' AND passenger_id IS NOT NULL
     `);
   }
+
+  // settings 預設值 — 訂票通知開關;INSERT OR IGNORE 不覆寫使用者已改過的值
+  const settingsNow = new Date().toISOString();
+  const stmt = db.prepare(`
+    INSERT OR IGNORE INTO settings (key, value, updated_at) VALUES (?, ?, ?)
+  `);
+  stmt.run('notification.bookingSuccess', 'true', settingsNow);
+  stmt.run('notification.bookingFailure', 'true', settingsNow);
 }
 
 function _toCamel(row) {

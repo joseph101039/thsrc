@@ -37,6 +37,18 @@ async function postJson(path, body) {
   return data;
 }
 
+async function putJson(path, body) {
+  const res = await fetch(API_URL + path, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ..._authHeaders() },
+    body: JSON.stringify(body),
+  });
+  if (res.status === 401) _handle401();
+  const data = await res.json();
+  if (data.error) throw new Error(data.error);
+  return data;
+}
+
 async function deleteJson(path) {
   const res = await fetch(API_URL + path, { method: 'DELETE', headers: _authHeaders() });
   if (res.status === 401) _handle401();
@@ -59,4 +71,6 @@ const api = {
   getAllowedUsers:     ()           => getJson('/v1/users'),
   addAllowedUser:     (data)       => postJson('/v1/users', data),
   deleteAllowedUser:  (email)      => deleteJson(`/v1/users/${encodeURIComponent(email)}`),
+  getNotificationSettings: ()      => getJson('/v1/settings/notification'),
+  updateNotificationSettings: (data) => putJson('/v1/settings/notification', data),
 };
