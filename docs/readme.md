@@ -392,11 +392,16 @@ gcloud compute ssh instance-20260427-141455 --zone=us-west1-b --project=sincere-
 | `server:8081/metrics`(對外 8081 已開,但 /metrics 走 token) | docker internal + 外部 | `Authorization: Bearer $METRICS_TOKEN`(timingSafeEqual 比較) |
 | `scheduler:8082/metrics` | 僅 docker internal(compose 不發佈) | 同 token |
 | `server:8081/alerts/grafana`(POST) | 對外(Grafana Cloud Alerting webhook) | `Authorization: Bearer $ALERT_WEBHOOK_TOKEN`(timingSafeEqual 比較) |
+| `server:8081/v1/settings/notification` (GET/PUT) | admin only | JWT + adminOnly |
+| `server:8081/v1/alerts/rules` (GET) | admin only | JWT + adminOnly + 60 req/5min limit |
+| `server:8081/v1/alerts/rules/:uid/pause` (POST) | admin only | JWT + adminOnly + 60 req/5min limit |
+| Grafana Cloud Alerting API | server 端 outbound 到 grafana.net | `Authorization: Bearer $GRAFANA_API_TOKEN`(Service Account token, `alert.rules:write` scope) |
 | Grafana Cloud remote_write | Alloy 透過 basic auth | `GRAFANA_PROM_USER` + `GRAFANA_PROM_TOKEN` |
 | LINE Messaging API push | 對外,server 端 outbound | `Authorization: Bearer $LINE_CHANNEL_ACCESS_TOKEN`(LINE 端 token) |
 
 > `METRICS_TOKEN` 同時保護兩個 `/metrics` 端點。Rotate 時 `.env` 改完要 `docker compose up -d server scheduler alloy` restart。
 > `ALERT_WEBHOOK_TOKEN` 改完要同步更新 Grafana Cloud Alerting 的 contact point header 才能繼續通。
+> `GRAFANA_API_TOKEN` 改完要 `docker compose up -d server` recreate(env_file 需重新讀)。
 
 #### Alert 流程
 
@@ -415,6 +420,35 @@ server:/alerts/grafana → alertDispatcher.handleWebhook(payload)
 ```
 
 backup-db.sh 失敗時走同一條 LINE push,但**不經過 server**(直接 docker exec 進 server container 用 curl 打 LINE API),避免循環依賴(server 自己掛了 backup 還是要能告警)。
+
+#### 訂票終態通知(PR-7)
+
+訂票成功 / 重試耗盡失敗時,server 內部直接 push LINE(不走 Grafana webhook):
+
+```
+runBooking() 終態
+   ↓ settingsService.isBookingSuccessNotifyEnabled() / isBookingFailureNotifyEnabled()
+   ↓   (30s in-process cache,/admin-settings 切換立即生效)
+   ↓ if enabled → lineNotifier.pushBookingResult(booking, lastFailedAttempt)
+   ↓   - 訊息含路線/車次/票號 或 路線/重試次數/失敗原因
+   ↓   - 不含 PII(passenger 姓名/身分證/email/phone)
+   ↓   - reason 去 control char + 截 200 字
+   ↓ fire-and-forget:LINE 失敗只 log warn,不影響訂票主流程
+```
+
+兩個獨立 toggle 存在 `settings` 表(KV)— `notification.bookingSuccess` / `notification.bookingFailure`,預設都開。
+
+#### 後台設定頁(PR-7 + PR-6b)
+
+`https://joseph101039.github.io/thsrc-booking/admin-settings.html`(admin only,JWT 自動帶 Bearer)。
+頁面包含兩個 section:
+
+| Section | 功能 | 後端 |
+|---|---|---|
+| 訂票通知 (LINE) | 成功 / 失敗 通知 toggle | `GET/PUT /v1/settings/notification` → SQLite `settings` 表 |
+| 告警規則 (Grafana) | 列 Grafana alert rules + pause/unpause | `GET /v1/alerts/rules` / `POST /v1/alerts/rules/:uid/pause` → Grafana provisioning API (`isPaused`) |
+
+> **告警 pause 是 last-writer-wins**:server 用 GET→mutate→PUT 改 `isPaused`,Grafana 不支援 ETag 條件 PUT。日後若接 Terraform/Grafana-as-code 同步 rule,改用 IaC 為 SoT 並關閉 UI 寫入路徑(`/v1/alerts/rules/:uid/pause`)。
 
 ---
 

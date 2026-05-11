@@ -100,24 +100,37 @@ server/                — Node.js/Express backend + job scheduler; deployed to 
     logger.js          — pino structured logger with GCP severity, redact rules for sensitive fields (idNumber, password, token, phone, email)
     swagger.js         — Swagger/OpenAPI spec generation (swagger-jsdoc)
     routes/
-      v1.js            — /v1 route definitions; applies auth + adminOnly middleware per endpoint
+      v1.js            — /v1 route definitions; applies auth + adminOnly middleware per endpoint;
+                         alert admin routes mounted with express-rate-limit (60 req/5min)
       health.js        — /healthz (liveness) + /readyz (readiness: DB + scheduler heartbeat)
+      alerts.js        — /alerts/grafana webhook (Grafana → LINE)
     controllers/
       authController.js      — login, register, JWT token issuance
       bookingController.js   — create/list/cancel bookings
       passengerController.js — CRUD for saved passenger profiles
       userController.js      — admin user management
+      settingsController.js  — GET/PUT /v1/settings/notification (booking 通知 toggle)
+      alertsController.js    — GET /v1/alerts/rules / POST /v1/alerts/rules/:uid/pause;
+                               10s in-process cache,代理 Grafana provisioning API
     services/
       authService.js         — credential verification, JWT signing
       bookingService.js      — booking business logic (validation, status transitions)
-      bookingEngineService.js — runBooking(), handleRetry(); POSTs to captcha solver, submits to THSRC
+      bookingEngineService.js — runBooking(), handleRetry(); POSTs to captcha solver, submits to THSRC;
+                               終態時 fire-and-forget LINE push
       passengerService.js    — passenger business logic
       userService.js         — user business logic
+      settingsService.js     — 30s cache 包裝 settingsRepo;訂票熱路徑用 isXxxNotifyEnabled()
+      lineNotifier.js        — pushText (Grafana alert) / pushBookingResult (訂票終態)
+      alertDispatcher.js     — handleWebhook (Grafana → LINE) + dedup
+      grafanaApi.js          — Grafana provisioning API 薄客戶端 (listAlertRules, pauseAlertRule)
+                               last-writer-wins:GET→mutate isPaused→PUT,不支援 ETag 條件 PUT
     repositories/
-      bookingRepo.js    — SQLite queries for bookings table
+      bookingRepo.js    — SQLite queries for bookings table; includes getLastFailedAttempt for failure notify
       passengerRepo.js  — SQLite queries for passengers table
       userRepo.js       — SQLite queries for users table
       heartbeatRepo.js  — upsert/get on system_heartbeat (used by /readyz)
+      settingsRepo.js   — generic key-value settings(notification.bookingSuccess/Failure ...)
+      alertStateRepo.js — Grafana webhook dedup state(tryClaim/rollbackClaim 樂觀鎖)
     models/
       schemas.js        — shared validation constants (e.g. VALID_ROLES)
     middlewares/

@@ -73,4 +73,6 @@ const api = {
   deleteAllowedUser:  (email)      => deleteJson(`/v1/users/${encodeURIComponent(email)}`),
   getNotificationSettings: ()      => getJson('/v1/settings/notification'),
   updateNotificationSettings: (data) => putJson('/v1/settings/notification', data),
+  getAlertRules:       ()           => getJson('/v1/alerts/rules'),
+  pauseAlertRule:      (uid, paused) => postJson(`/v1/alerts/rules/${encodeURIComponent(uid)}/pause`, { paused }),
 };
