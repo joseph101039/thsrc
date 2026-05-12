@@ -75,7 +75,9 @@ services:
     image: nickfedor/watchtower:latest
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-    command: --interval 300
+    # --cleanup: 升級成功後自動刪掉舊 image,避免每次部署累積佔 / 空間
+    # (e2-micro 8.6GB rootfs 用量緊張,舊 image 一週可累積 1GB+)
+    command: --interval 300 --cleanup
     restart: unless-stopped
 
 volumes:
