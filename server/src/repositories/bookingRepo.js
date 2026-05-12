@@ -11,7 +11,7 @@ function getById(id) {
   return _toCamel(getDb().prepare('SELECT * FROM bookings WHERE id=?').get(id));
 }
 
-function create({ passengerId, fromStation, toStation, date, desiredTime, earliestTime, latestTime, maxRetries, scheduledAt, retryWaitValue, retryWaitUnit, ticketAdult, ticketChild, ticketDisabled, ticketSenior, ticketStudent, searchMode, trainNoTarget, ownerEmail }) {
+function create({ passengerId, fromStation, toStation, date, desiredTime, earliestTime, latestTime, maxRetries, scheduledAt, retryWaitValue, retryWaitUnit, ticketAdult, ticketChild, ticketDisabled, ticketSenior, ticketStudent, searchMode, trainNoTarget, ownerEmail, concurrency }) {
   const id = uuidv4();
   const now = new Date().toISOString();
   getDb().prepare(`
@@ -20,14 +20,14 @@ function create({ passengerId, fromStation, toStation, date, desiredTime, earlie
        max_retries, scheduled_at, status, retry_count, train_no, ticket_no,
        retry_wait_value, retry_wait_unit,
        ticket_adult, ticket_child, ticket_disabled, ticket_senior, ticket_student,
-       search_mode, train_no_target, owner_email,
+       search_mode, train_no_target, owner_email, concurrency,
        created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', 0, '', '', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', 0, '', '', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(id, passengerId, fromStation, toStation, date, desiredTime, earliestTime, latestTime,
          maxRetries ?? 10, scheduledAt ?? null,
          retryWaitValue ?? 2, retryWaitUnit ?? 'minute',
          ticketAdult ?? 1, ticketChild ?? 0, ticketDisabled ?? 0, ticketSenior ?? 0, ticketStudent ?? 0,
-         searchMode ?? 'time', trainNoTarget ?? null, ownerEmail ?? '',
+         searchMode ?? 'time', trainNoTarget ?? null, ownerEmail ?? '', concurrency ?? 1,
          now, now);
   return { success: true, id };
 }
@@ -82,6 +82,32 @@ function cancelIfPending(id) {
     UPDATE bookings SET status = 'cancelled', updated_at = ?
     WHERE id = ? AND status = 'pending'
   `).run(now, id);
+  return result.changes === 1;
+}
+
+// Atomic CAS:只在 status='running' 時改寫 retry 結果(pending+scheduled_at 或 failed)。
+// 用途:防 fan-out 父層 timeout 與 late winner claimWinner 的 race —
+// 若 late winner 已把 status 改為 success,本函式 changes=0 不蓋掉成功訂單。
+function setRetryFromRunning(id, { status, scheduledAt, retryCount }) {
+  const now = new Date().toISOString();
+  const sets = ['status = ?', 'updated_at = ?'];
+  const values = [status, now];
+  if (scheduledAt !== undefined) { sets.push('scheduled_at = ?'); values.push(scheduledAt); }
+  if (retryCount !== undefined) { sets.push('retry_count = ?'); values.push(retryCount); }
+  const sql = `UPDATE bookings SET ${sets.join(', ')} WHERE id = ? AND status = 'running'`;
+  const result = getDb().prepare(sql).run(...values, id);
+  return result.changes === 1;
+}
+
+// Atomic CAS：併發 worker 拿到票後爭搶贏家;只有 status='running' 時才寫入 success 與票號。
+// 第一個 changes=1 為贏家;其餘 changes=0 的 worker 應視為輸家(拿到的票需 enqueue 退票)。
+function claimWinner(id, { ticketNo, trainNo, departTime }) {
+  const now = new Date().toISOString();
+  const result = getDb().prepare(`
+    UPDATE bookings
+    SET status = 'success', ticket_no = ?, train_no = ?, depart_time = ?, updated_at = ?
+    WHERE id = ? AND status = 'running'
+  `).run(ticketNo, trainNo ?? '', departTime ?? null, now, id);
   return result.changes === 1;
 }
 
@@ -158,6 +184,6 @@ function countByStatus() {
 
 module.exports = {
   getAll, getById, create, updateFields, deleteById,
-  getPending, getAllOverduePending, getPendingWithin, tryClaimBooking, cancelIfPending, getStuckRunning, getStuckRefunding,
+  getPending, getAllOverduePending, getPendingWithin, tryClaimBooking, claimWinner, setRetryFromRunning, cancelIfPending, getStuckRunning, getStuckRefunding,
   createAttempt, getAttemptsByBookingId, getLastFailedAttempt, countByStatus,
 };

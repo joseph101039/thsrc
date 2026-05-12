@@ -8,7 +8,28 @@ function listBookings() {
 }
 
 function createBooking(data) {
-  const { retryWaitUnit, retryWaitValue, ticketAdult, ticketChild, ticketDisabled, ticketSenior, ticketStudent, searchMode, trainNoTarget } = data;
+  const { retryWaitUnit, retryWaitValue, ticketAdult, ticketChild, ticketDisabled, ticketSenior, ticketStudent, searchMode, trainNoTarget, concurrency, scheduledAt, immediate } = data;
+
+  // 併發搶票驗證:1~MAX_CONCURRENCY,且僅限預約未來時間使用(避免立即下單浪費 captcha solver)
+  if (concurrency !== undefined) {
+    if (!Number.isInteger(concurrency) || concurrency < 1 || concurrency > CONFIG.MAX_CONCURRENCY) {
+      throw Object.assign(new Error(`concurrency 必須為 1–${CONFIG.MAX_CONCURRENCY} 的整數`), { status: 400 });
+    }
+    // 立即下單強制 concurrency=1 — 即使前端可能繞過,服務端為單一信任源。
+    if (concurrency > 1 && immediate) {
+      throw Object.assign(new Error('立即下單不允許併發搶票,請設 concurrency=1'), { status: 400 });
+    }
+    if (concurrency > 1 && !scheduledAt) {
+      throw Object.assign(new Error('併發搶票僅在預約未來時間時可用,立即下單請設 concurrency=1'), { status: 400 });
+    }
+    // scheduledAt 必須在未來 — 防止使用者傳過去時間繞過「預約模式」意圖
+    if (concurrency > 1 && scheduledAt) {
+      const t = Date.parse(scheduledAt);
+      if (!Number.isFinite(t) || t <= Date.now()) {
+        throw Object.assign(new Error('併發搶票時 scheduledAt 必須為未來時間'), { status: 400 });
+      }
+    }
+  }
 
   const hasUnit  = retryWaitUnit  !== undefined;
   const hasValue = retryWaitValue !== undefined;

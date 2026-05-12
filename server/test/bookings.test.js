@@ -356,6 +356,119 @@ test('POST /v1/bookings：ticket counts 和 searchMode 應被儲存並回傳', a
   }
 });
 
+test('POST /v1/bookings: concurrency=2 + scheduledAt 應被儲存', async () => {
+  const server = http.createServer(app);
+  await new Promise(r => server.listen(0, r));
+  try {
+    const token = makeToken();
+    const res = await request(server, 'POST', '/v1/bookings', {
+      ...BOOKING_FIXTURE,
+      scheduledAt: '2026-06-01T01:00:00Z',
+      concurrency: 2,
+    }, { Authorization: `Bearer ${token}` });
+    assert.strictEqual(res.status, 200);
+    const listRes = await request(server, 'GET', '/v1/bookings', null, { Authorization: `Bearer ${token}` });
+    const booking = listRes.body.bookings.find(b => b.id === res.body.id);
+    assert.strictEqual(booking.concurrency, 2);
+  } finally {
+    await new Promise(r => server.close(r));
+  }
+});
+
+test('POST /v1/bookings: concurrency=6 超出上限應回傳 400', async () => {
+  const server = http.createServer(app);
+  await new Promise(r => server.listen(0, r));
+  try {
+    const token = makeToken();
+    const res = await request(server, 'POST', '/v1/bookings', {
+      ...BOOKING_FIXTURE,
+      scheduledAt: '2026-06-01T01:00:00Z',
+      concurrency: 6,
+    }, { Authorization: `Bearer ${token}` });
+    assert.strictEqual(res.status, 400);
+  } finally {
+    await new Promise(r => server.close(r));
+  }
+});
+
+test('POST /v1/bookings: immediate=true + concurrency>1 應回傳 400(服務端強制)', async () => {
+  const server = http.createServer(app);
+  await new Promise(r => server.listen(0, r));
+  try {
+    const token = makeToken();
+    const res = await request(server, 'POST', '/v1/bookings', {
+      ...BOOKING_FIXTURE,
+      immediate: true,
+      scheduledAt: '2099-12-31T00:00:00Z',  // 即使帶 scheduledAt 也應擋
+      concurrency: 3,
+    }, { Authorization: `Bearer ${token}` });
+    assert.strictEqual(res.status, 400);
+  } finally {
+    await new Promise(r => server.close(r));
+  }
+});
+
+test('POST /v1/bookings: concurrency>1 + scheduledAt 過去時間應回傳 400', async () => {
+  const server = http.createServer(app);
+  await new Promise(r => server.listen(0, r));
+  try {
+    const token = makeToken();
+    const res = await request(server, 'POST', '/v1/bookings', {
+      ...BOOKING_FIXTURE,
+      scheduledAt: '2020-01-01T00:00:00Z',
+      concurrency: 2,
+    }, { Authorization: `Bearer ${token}` });
+    assert.strictEqual(res.status, 400);
+  } finally {
+    await new Promise(r => server.close(r));
+  }
+});
+
+test('POST /v1/bookings: concurrency>1 但無 scheduledAt 應回傳 400', async () => {
+  const server = http.createServer(app);
+  await new Promise(r => server.listen(0, r));
+  try {
+    const token = makeToken();
+    const res = await request(server, 'POST', '/v1/bookings', {
+      ...BOOKING_FIXTURE,
+      concurrency: 3,
+    }, { Authorization: `Bearer ${token}` });
+    assert.strictEqual(res.status, 400);
+  } finally {
+    await new Promise(r => server.close(r));
+  }
+});
+
+test('bookingRepo.setRetryFromRunning CAS: status 已非 running 時 changes=0(防 late winner 被覆寫)', async () => {
+  const bookingRepo = require('../src/repositories/bookingRepo');
+  const { getDb } = require('../src/db');
+  const created = bookingRepo.create({ ...BOOKING_FIXTURE });
+  // 模擬 late winner 已寫入 success
+  getDb().prepare("UPDATE bookings SET status='success', ticket_no='TKT-X' WHERE id=?").run(created.id);
+  // 此時 handleRetry 嘗試覆寫應 no-op
+  const ok = bookingRepo.setRetryFromRunning(created.id, { status: 'pending', scheduledAt: '2026-12-01T00:00:00Z', retryCount: 5 });
+  assert.strictEqual(ok, false);
+  const fresh = bookingRepo.getById(created.id);
+  assert.strictEqual(fresh.status, 'success');
+  assert.strictEqual(fresh.ticketNo, 'TKT-X');
+});
+
+test('bookingRepo.claimWinner CAS: 兩次連續呼叫只有第一次 changes=1', async () => {
+  const bookingRepo = require('../src/repositories/bookingRepo');
+  const { getDb } = require('../src/db');
+  // 建立一筆 booking 並手動進 running 狀態
+  const created = bookingRepo.create({ ...BOOKING_FIXTURE, concurrency: 2 });
+  getDb().prepare("UPDATE bookings SET status='running' WHERE id=?").run(created.id);
+
+  const w1 = bookingRepo.claimWinner(created.id, { ticketNo: 'TKT-A', trainNo: '101', departTime: null });
+  const w2 = bookingRepo.claimWinner(created.id, { ticketNo: 'TKT-B', trainNo: '102', departTime: null });
+  assert.strictEqual(w1, true);
+  assert.strictEqual(w2, false);
+  const fresh = bookingRepo.getById(created.id);
+  assert.strictEqual(fresh.status, 'success');
+  assert.strictEqual(fresh.ticketNo, 'TKT-A');
+});
+
 function makeTokenFor(email, role = 'user') {
   return jwt.sign({ email, role }, 'test-secret', { expiresIn: '1h' });
 }

@@ -228,6 +228,8 @@ function makeFailedBooking(reason = 'TEST_REASON_X') {
   });
   // 預先寫一筆失敗 attempt(模擬已重試一次失敗)
   bookingRepo.createAttempt({ bookingId: r.id, success: false, reason });
+  // handleRetry 用 setRetryFromRunning CAS(WHERE status='running'),測試需先推進 running
+  bookingRepo.tryClaimBooking(r.id);
   // retryCount 回 0,maxRetries 1 — handleRetry 會 +1 達標進入 FAILED 終態
   return bookingRepo.getById(r.id);
 }
