@@ -1203,7 +1203,7 @@
                     "group": "prometheus",
                     "kind": "DataQuery",
                     "spec": {
-                      "expr": "1 - avg without (cpu) (rate(node_cpu_seconds_total{job=\"host\",mode=\"idle\"}[5m]))",
+                      "expr": "clamp_min(clamp_max(1 - avg without (cpu) (rate(node_cpu_seconds_total{job=\"host\",mode=\"idle\"}[5m])), 1), 0)",
                       "legendFormat": "cpu %"
                     },
                     "version": "v0"
