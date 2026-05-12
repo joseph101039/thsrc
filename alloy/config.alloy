@@ -56,6 +56,46 @@ prometheus.scrape "thsrc_scheduler" {
   forward_to = [prometheus.remote_write.grafana_cloud.receiver]
 }
 
+// Host metrics — e2-micro VM 上限 1GB RAM,需監控 memory/CPU/disk 飽和狀況。
+// prometheus.exporter.unix 透過 mount /proc /sys /(rootfs) 讀 host 資料,
+// docker-compose 已加 bind mount。
+// 只啟用必要 collectors 控制 active series(meminfo+cpu+filesystem+loadavg+diskstats ~50 個)。
+prometheus.exporter.unix "host" {
+  rootfs_path = "/host/root"
+  sysfs_path  = "/host/sys"
+  procfs_path = "/host/proc"
+
+  // 預設 collector 上百個 — 顯式列舉所需子集,避免 series 暴漲
+  set_collectors = ["meminfo", "cpu", "filesystem", "loadavg", "diskstats"]
+
+  // filesystem collector 排除 docker overlay / tmpfs 等虛擬掛載,只看 rootfs / data volume
+  filesystem {
+    mount_points_exclude = "^/(dev|proc|sys|var/lib/docker/.+|run|host/(dev|proc|sys|run))($|/)"
+    fs_types_exclude     = "^(autofs|binfmt_misc|bpf|cgroup2?|configfs|debugfs|devpts|devtmpfs|fusectl|hugetlbfs|iso9660|mqueue|nsfs|overlay|proc|procfs|pstore|rpc_pipefs|securityfs|selinuxfs|squashfs|sysfs|tracefs)$"
+  }
+}
+
+// 把 exporter targets 加上 job=host + instance=gce-uswest1 label
+discovery.relabel "host_metrics" {
+  targets = prometheus.exporter.unix.host.targets
+  rule {
+    action        = "replace"
+    target_label  = "job"
+    replacement   = "host"
+  }
+  rule {
+    action        = "replace"
+    target_label  = "instance"
+    replacement   = "gce-uswest1"
+  }
+}
+
+prometheus.scrape "host_metrics" {
+  targets         = discovery.relabel.host_metrics.output
+  scrape_interval = "30s"  // host 變動不需 15s,30s 省一半 series ingest
+  forward_to      = [prometheus.remote_write.grafana_cloud.receiver]
+}
+
 prometheus.remote_write "grafana_cloud" {
   endpoint {
     url = sys.env("GRAFANA_PROM_URL")

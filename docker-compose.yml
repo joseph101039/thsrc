@@ -51,6 +51,14 @@ services:
     image: grafana/alloy:v1.16.1
     volumes:
       - ./alloy/config.alloy:/etc/alloy/config.alloy:ro
+      # host metrics:prometheus.exporter.unix 透過這些 mount 讀 host /proc /sys /rootfs。
+      # ro 即可不需寫權限;路徑與 alloy/config.alloy 的 rootfs_path/sysfs_path/procfs_path 對齊。
+      # rslave 讓 host mount 變動(如外接 disk)能傳到容器內,filesystem 指標不會錯失。
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      # 本地 macOS Docker Desktop 不支援 rslave(/ 不是 shared mount),
+      # 線上 Linux 想要 hotplug disk 變動 propagate 進來可改成 ro,rslave;一般情境 ro 足夠。
+      - /:/host/root:ro
     command:
       - run
       - /etc/alloy/config.alloy
