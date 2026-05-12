@@ -10,6 +10,12 @@ function setMode(mode) {
   document.getElementById('btn-immediate').classList.toggle('active', mode === 'immediate');
   document.getElementById('btn-scheduled').classList.toggle('active', mode === 'scheduled');
   document.getElementById('scheduled-fields').style.display = mode === 'scheduled' ? 'grid' : 'none';
+  // 併發搶票僅在預約模式可用 — 立即模式時隱藏並重設為 1,避免 hidden 值殘留誤送
+  const concurrencyField = document.getElementById('concurrency-field');
+  concurrencyField.style.display = mode === 'scheduled' ? 'block' : 'none';
+  if (mode !== 'scheduled') {
+    document.getElementById('b-concurrency').value = '1';
+  }
 }
 
 function setSearchMode(mode) {
@@ -108,11 +114,15 @@ async function submitBooking() {
   }
 
   let scheduledAt = null;
+  let concurrency = 1;
   if (bookingMode === 'scheduled') {
     const schedDate = document.getElementById('b-schedule-date').value;
     const schedTime = document.getElementById('b-schedule-time').value;
     if (!schedDate || !schedTime) { alert('請填寫預約日期和時間'); return; }
     scheduledAt = new Date(schedDate + 'T' + schedTime + ':00').toISOString();
+    const cVal = parseInt(document.getElementById('b-concurrency').value, 10);
+    if (!Number.isInteger(cVal) || cVal < 1 || cVal > 5) { alert('併發搶票數須為 1–5'); return; }
+    concurrency = cVal;
   }
 
   const btn = document.getElementById('submit-btn');
@@ -133,6 +143,7 @@ async function submitBooking() {
       searchMode,
       trainNoTarget: trainNoTarget || null,
       immediate: bookingMode === 'immediate',
+      concurrency,
     });
     location.href = 'index.html';
   } catch (err) {

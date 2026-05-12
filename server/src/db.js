@@ -13,6 +13,7 @@ function getDb() {
   fs.mkdirSync(path.dirname(dbPath), { recursive: true });
   _db = new DatabaseSync(dbPath);
   _db.exec('PRAGMA journal_mode = WAL');
+  _db.exec('PRAGMA busy_timeout = 5000');
   _initSchema(_db);
   _migrate(_db);
   return _db;
@@ -57,6 +58,7 @@ function _initSchema(db) {
       search_mode     TEXT NOT NULL DEFAULT 'time',
       train_no_target TEXT,
       owner_email     TEXT NOT NULL DEFAULT '',
+      concurrency     INTEGER NOT NULL DEFAULT 1,
       created_at      TEXT NOT NULL,
       updated_at      TEXT NOT NULL
     );
@@ -146,6 +148,9 @@ function _migrate(db) {
   }
   if (!bookingCols.includes('train_no_target')) {
     db.exec("ALTER TABLE bookings ADD COLUMN train_no_target TEXT");
+  }
+  if (!bookingCols.includes('concurrency')) {
+    db.exec("ALTER TABLE bookings ADD COLUMN concurrency INTEGER NOT NULL DEFAULT 1");
   }
   if (!bookingCols.includes('owner_email')) {
     db.exec("ALTER TABLE bookings ADD COLUMN owner_email TEXT NOT NULL DEFAULT ''");

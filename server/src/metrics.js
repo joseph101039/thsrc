@@ -70,6 +70,19 @@ const bookingRunningGauge = new client.Gauge({
   registers: [register],
 });
 
+// 併發搶票 worker 結果 — outcome:
+//   winner            = CAS 搶到 booking.success
+//   loser_refunded    = 拿到票但 CAS 輸了,退票成功
+//   loser_refund_failed = 拿到票但 CAS 輸了,3 次重試後退票仍失敗(已 LINE 通知 admin)
+//   aborted           = 收到 abort 提早終止(尚未送出 submit)
+//   error             = worker 內部例外(訂單未拿到)
+const bookingWorkerOutcomeTotal = new client.Counter({
+  name: 'thsrc_booking_worker_outcome_total',
+  help: '併發搶票 worker 終態統計',
+  labelNames: ['outcome'],
+  registers: [register],
+});
+
 module.exports = {
   register,
   httpRequestDuration,
@@ -79,4 +92,5 @@ module.exports = {
   captchaSolveDuration,
   bookingPendingGauge,
   bookingRunningGauge,
+  bookingWorkerOutcomeTotal,
 };

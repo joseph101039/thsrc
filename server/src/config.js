@@ -7,6 +7,10 @@ const CONFIG = {
   RETRY_WAIT_MINUTES: 2,
   MAX_RETRIES_DEFAULT: 10,
   STUCK_BOOKING_MINUTES: 10,
+  MAX_CONCURRENCY: 5,
+  DEFAULT_CONCURRENCY: 1,
+  LOSER_REFUND_RETRIES: 3,
+  LOSER_REFUND_INTERVAL_MS: 60_000,
 
   STATIONS: ['南港', '台北', '板橋', '桃園', '新竹', '苗栗', '台中', '彰化', '雲林', '嘉義', '台南', '左營'],
 
