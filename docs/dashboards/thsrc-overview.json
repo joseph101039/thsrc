@@ -1103,10 +1103,10 @@
             "transformations": []
           }
         },
-        "description": "已用記憶體 = MemTotal - MemAvailable;e2-micro 約 1024 MiB,留意接近 870 MiB 即達 85%",
+        "description": "已用記憶體 = MemTotal - MemAvailable;e2-micro 上限 1 GiB,Grafana 自動以 MB/GB 顯示",
         "id": 10,
         "links": [],
-        "title": "VM 記憶體用量 (bytes)",
+        "title": "VM 記憶體用量",
         "vizConfig": {
           "group": "timeseries",
           "kind": "VizConfig",
@@ -1203,7 +1203,7 @@
                     "group": "prometheus",
                     "kind": "DataQuery",
                     "spec": {
-                      "expr": "1 - avg by (instance) (rate(node_cpu_seconds_total{job=\"host\",mode=\"idle\"}[5m]))",
+                      "expr": "clamp_min(clamp_max(1 - avg without (cpu) (rate(node_cpu_seconds_total{job=\"host\",mode=\"idle\"}[5m])), 1), 0)",
                       "legendFormat": "cpu %"
                     },
                     "version": "v0"
@@ -1316,7 +1316,7 @@
                     "group": "prometheus",
                     "kind": "DataQuery",
                     "spec": {
-                      "expr": "1 - (node_filesystem_avail_bytes{job=\"host\",mountpoint=\"/host/root\"} / node_filesystem_size_bytes{job=\"host\",mountpoint=\"/host/root\"})",
+                      "expr": "1 - (node_filesystem_avail_bytes{job=\"host\",mountpoint=\"/\",fstype!~\"tmpfs|overlay|squashfs\"} / node_filesystem_size_bytes{job=\"host\",mountpoint=\"/\",fstype!~\"tmpfs|overlay|squashfs\"})",
                       "legendFormat": "disk used %"
                     },
                     "version": "v0"
@@ -1329,7 +1329,7 @@
             "transformations": []
           }
         },
-        "description": "rootfs(/) 使用率;SQLite db + Docker images 主要佔用",
+        "description": "rootfs(/) 使用率;rootfs_path=/host/root 設定下 node_exporter 會 rewrite mountpoint 回 /",
         "id": 12,
         "links": [],
         "title": "VM Disk 使用率 (rootfs)",
@@ -1423,23 +1423,10 @@
               "kind": "ElementReference",
               "name": "panel-1"
             },
-            "height": 4,
-            "width": 6,
             "x": 0,
-            "y": 0
-          }
-        },
-        {
-          "kind": "GridLayoutItem",
-          "spec": {
-            "element": {
-              "kind": "ElementReference",
-              "name": "panel-2"
-            },
-            "height": 8,
-            "width": 12,
-            "x": 6,
-            "y": 0
+            "y": 0,
+            "width": 6,
+            "height": 4
           }
         },
         {
@@ -1449,36 +1436,10 @@
               "kind": "ElementReference",
               "name": "panel-4"
             },
-            "height": 4,
+            "x": 6,
+            "y": 0,
             "width": 6,
-            "x": 0,
-            "y": 4
-          }
-        },
-        {
-          "kind": "GridLayoutItem",
-          "spec": {
-            "element": {
-              "kind": "ElementReference",
-              "name": "panel-3"
-            },
-            "height": 8,
-            "width": 12,
-            "x": 0,
-            "y": 8
-          }
-        },
-        {
-          "kind": "GridLayoutItem",
-          "spec": {
-            "element": {
-              "kind": "ElementReference",
-              "name": "panel-5"
-            },
-            "height": 8,
-            "width": 8,
-            "x": 12,
-            "y": 8
+            "height": 4
           }
         },
         {
@@ -1488,10 +1449,49 @@
               "kind": "ElementReference",
               "name": "panel-8"
             },
-            "height": 8,
-            "width": 4,
-            "x": 20,
-            "y": 8
+            "x": 0,
+            "y": 4,
+            "width": 12,
+            "height": 4
+          }
+        },
+        {
+          "kind": "GridLayoutItem",
+          "spec": {
+            "element": {
+              "kind": "ElementReference",
+              "name": "panel-2"
+            },
+            "x": 12,
+            "y": 0,
+            "width": 12,
+            "height": 8
+          }
+        },
+        {
+          "kind": "GridLayoutItem",
+          "spec": {
+            "element": {
+              "kind": "ElementReference",
+              "name": "panel-3"
+            },
+            "x": 0,
+            "y": 8,
+            "width": 12,
+            "height": 8
+          }
+        },
+        {
+          "kind": "GridLayoutItem",
+          "spec": {
+            "element": {
+              "kind": "ElementReference",
+              "name": "panel-5"
+            },
+            "x": 12,
+            "y": 8,
+            "width": 12,
+            "height": 8
           }
         },
         {
@@ -1501,10 +1501,10 @@
               "kind": "ElementReference",
               "name": "panel-6"
             },
-            "height": 8,
-            "width": 12,
             "x": 0,
-            "y": 16
+            "y": 16,
+            "width": 12,
+            "height": 8
           }
         },
         {
@@ -1514,10 +1514,10 @@
               "kind": "ElementReference",
               "name": "panel-7"
             },
-            "height": 8,
-            "width": 12,
             "x": 12,
-            "y": 16
+            "y": 16,
+            "width": 12,
+            "height": 8
           }
         },
         {
@@ -1527,10 +1527,10 @@
               "kind": "ElementReference",
               "name": "panel-9"
             },
-            "height": 8,
-            "width": 12,
             "x": 0,
-            "y": 24
+            "y": 24,
+            "width": 12,
+            "height": 8
           }
         },
         {
@@ -1540,10 +1540,10 @@
               "kind": "ElementReference",
               "name": "panel-10"
             },
-            "height": 8,
-            "width": 12,
             "x": 12,
-            "y": 24
+            "y": 24,
+            "width": 12,
+            "height": 8
           }
         },
         {
@@ -1553,10 +1553,10 @@
               "kind": "ElementReference",
               "name": "panel-11"
             },
-            "height": 8,
-            "width": 12,
             "x": 0,
-            "y": 32
+            "y": 32,
+            "width": 12,
+            "height": 8
           }
         },
         {
@@ -1566,10 +1566,10 @@
               "kind": "ElementReference",
               "name": "panel-12"
             },
-            "height": 8,
-            "width": 12,
             "x": 12,
-            "y": 32
+            "y": 32,
+            "width": 12,
+            "height": 8
           }
         }
       ]
