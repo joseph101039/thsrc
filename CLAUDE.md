@@ -85,7 +85,10 @@ curl http://35.212.154.47:8081/
 
 ```
 docs/
-  readme.md            — system architecture diagram and data flow; update when modifying core workflows
+  readme.md            — 交付文件入口(PRD / FSD / User Stories / Use Cases 索引)
+  data_flow.md         — system architecture diagram and data flow; update when modifying core workflows
+  deliverables/        — 對外交付文件(2026-05-15-thsrc-system-{prd,fsd,user-stories,use-cases}.md)
+  superpowers/specs/   — 歷史 design specs(內部規劃紀錄,依日期命名)
   runbooks/            — operational runbooks
     setup-gcs-backup.md — one-time GCS bucket + IAM setup for SQLite backup
     restore-db.md       — restore SQLite from GCS backup
