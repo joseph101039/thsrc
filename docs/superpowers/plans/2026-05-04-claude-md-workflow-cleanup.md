@@ -92,7 +92,7 @@
   ```
   改為：
   ```
-  6. **Deploy** — For prod issues: check logs first (`docs/readme.md#production-logs`), confirm root cause, then redeploy. For local issues: `docker-compose up -d --build`.
+  6. **Deploy** — For prod issues: check logs first (`docs/data_flow.md#production-logs`), confirm root cause, then redeploy. For local issues: `docker-compose up -d --build`.
   ```
 
 - [ ] **Step 3: 確認修改結果**
