@@ -6,6 +6,60 @@
 
 ---
 
+## 前後端系統圖
+
+> 受限 Google Compute Engine free-tier 的資源限制(2 vCPU， 1 GB RAM)，系統架構以**單機多容器**為主，透過 Docker Compose 編排。以下圖示與說明皆依此架構設計。
+> 前端為 GitHub Pages 靜態站，透過 Cloudflare Named Tunnel 連到 GCE VM 上以 docker compose 編排的五個 service。
+
+```
++----------------------------------------------------------------------+
+|  [Frontend]  Browser -- GitHub Pages static site (HTML/CSS/JS)        |
+|              https://joseph101039.github.io/thsrc-booking/            |
++----------------------------------+-----------------------------------+
+                                   | HTTPS (JWT Bearer)
+                                   v
+                  +-------------------------------+
+                  |  Cloudflare Named Tunnel      |
+                  |  api.joseph101039.uk -> :8081 |
+                  +---------------+---------------+
+                                  |
++=================================+====================================+
+|  GCE VM (e2-micro / us-west1-b) |                                     |
+|   docker compose                v                                     |
+|  +-------------------+   +-------------------+                        |
+|  | server (Node.js)  |   | scheduler(Node.js) |                       |
+|  | 對外 API,承接前端   |   | 定時輪詢資料庫       |                       |
+|  | 與建立訂票          |   | 執行訂票/退票       |                        |
+|  +----+---------+----+   +----+---------+----+                        |
+|       |         |             |         |                             |
+|       |         +-- db-data --+         |  ══ POST /solve             |
+|       |            volume (SQLite,      |  (server 與 scheduler       |
+|       |            兩服務共用)            |   訂票時皆呼叫)               |
+|       |                                 v                             |
+|       |                            +-------------------+              |
+|       |                            | captcha (Python)  |              |
+|       | scrape :8081 / :8082       | 圖形驗證碼辨識服務   |              |
+|       | /metrics                   | CRNN+CTC 模型      |              |
+|       |                            | 服務 (:8080)       |              |
+|       v                            +-------------------+              |   
+|  +----------------+   +----------------+                              |
+|  | alloy          |   | watchtower     |                              |
+|  | 收集指標並推送   |   | 自動更新各服務    |                              |
+|  | 至雲端監控平台   |   | 的容器映像檔      |                              |
+|  +-------+--------+   +----------------+                              |
++==========+===========================================================+
+           | remote_write (Prometheus)
+           v
+   +----------------+   Alerting webhook    +----------------+
+   | Grafana Cloud  | --- /alerts/grafana ->| LINE Messaging |
+   | 儀表板/告警規則  |     回送至 server      | 訂票終態通知     |
+   +----------------+                       +----------------+
+
+外部相依:
+  - irs.thsrc.com.tw  <- server / scheduler 對外連線高鐵網站 (Akamai WAF + Wicket)
+  - GCS bucket        <- backup-db.sh 每日備份 SQLite (VM cron,不在 compose 內)
+```
+
 ## 交付文件清單
 
 | 類別 | 文件 | 路徑 |
