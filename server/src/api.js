@@ -42,6 +42,11 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 app.use('/v1', v1Router);
 app.use('/admin', adminRouter);
 
+if (process.env.MOCK_BOOKING_ENGINE === 'true') {
+  const testRouter = require('./routes/test');
+  app.use('/test', testRouter);
+}
+
 if (require.main === module) {
   app.listen(CONFIG.PORT, () => {
     logger.info({ port: CONFIG.PORT }, 'THSRC server listening');

@@ -26,6 +26,18 @@ async function runBooking(bookingId, parentLog) {
     return;
   }
 
+  if (process.env.MOCK_BOOKING_ENGINE === 'true') {
+    const mockResult = global.__mockBookingResult || 'success';
+    log.info({ mockResult }, 'mock booking engine: 跳過真實訂票流程');
+    if (mockResult === 'success') {
+      bookingRepo.claimWinner(bookingId, { ticketNo: 'MOCK-12345', trainNo: '0666', departTime: '10:00' });
+    } else {
+      bookingRepo.updateFields(bookingId, { status: CONFIG.BOOKING_STATUS.FAILED });
+      bookingRepo.createAttempt({ bookingId, success: false, reason: 'mock failure' });
+    }
+    return;
+  }
+
   const booking = bookingRepo.getById(bookingId);
   if (!booking) throw new Error('Booking not found: ' + bookingId);
   const passenger = passengerRepo.getById(booking.passengerId);
