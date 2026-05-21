@@ -3,27 +3,42 @@
 const http = require('http');
 
 const SERVER_URL = 'http://localhost:8081';
-const TEST_EMAIL = 'e2e-test@thsrc-test.local';
-const ADMIN_EMAIL = 'joseph101039@gmail.com'; // 預設 admin（已在 allowed_users）
+// db.js 在初始化時將此 email seed 進 allowed_users（role='admin'），測試環境可直接使用
+const ADMIN_EMAIL = 'joseph101039@gmail.com';
 
-function postJson(urlPath, body) {
+function getTestApiKey() {
+  const key = process.env.TEST_API_KEY;
+  if (!key) throw new Error('TEST_API_KEY 未設定，無法呼叫 /test 端點');
+  return key;
+}
+
+function postJson(urlPath, body, extraHeaders = {}) {
   return new Promise((resolve, reject) => {
     const data = JSON.stringify(body);
     const url = new URL(SERVER_URL + urlPath);
     const options = {
       hostname: url.hostname,
-      port: url.port || 80,
+      port: Number(url.port) || 80,
       path: url.pathname,
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Content-Length': Buffer.byteLength(data),
+        ...extraHeaders,
       },
     };
     const req = http.request(options, (res) => {
-      let body = '';
-      res.on('data', chunk => body += chunk);
-      res.on('end', () => resolve({ status: res.statusCode, body: JSON.parse(body) }));
+      let raw = '';
+      res.on('data', chunk => raw += chunk);
+      res.on('end', () => {
+        let parsed;
+        try { parsed = JSON.parse(raw); } catch { parsed = { _raw: raw }; }
+        if (res.statusCode >= 400) {
+          reject(new Error(`HTTP ${res.statusCode} from ${urlPath}: ${raw}`));
+        } else {
+          resolve({ status: res.statusCode, body: parsed });
+        }
+      });
     });
     req.on('error', reject);
     req.write(data);
@@ -31,10 +46,11 @@ function postJson(urlPath, body) {
   });
 }
 
-// 取得測試 JWT（使用 admin 帳號，已在 allowed_users 白名單）
+// 取得測試 JWT，需帶 X-Test-Api-Key header 通過二次驗證
 async function getTestToken(email = ADMIN_EMAIL, role = 'admin') {
-  const res = await postJson('/test/auth/token', { email, role });
-  if (res.status !== 200) throw new Error(`取得測試 token 失敗: ${JSON.stringify(res.body)}`);
+  const res = await postJson('/test/auth/token', { email, role }, {
+    'x-test-api-key': getTestApiKey(),
+  });
   return res.body.token;
 }
 
@@ -54,8 +70,9 @@ async function makeStorageState(email = ADMIN_EMAIL, role = 'admin') {
 
 // 動態切換 mock 訂票結果
 async function setMockBookingResult(result) {
-  const res = await postJson('/test/mock-config', { result });
-  if (res.status !== 200) throw new Error(`切換 mock 結果失敗: ${JSON.stringify(res.body)}`);
+  await postJson('/test/mock-config', { result }, {
+    'x-test-api-key': getTestApiKey(),
+  });
 }
 
-module.exports = { getTestToken, makeStorageState, setMockBookingResult, ADMIN_EMAIL, TEST_EMAIL };
+module.exports = { getTestToken, makeStorageState, setMockBookingResult, ADMIN_EMAIL };

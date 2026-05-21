@@ -1,18 +1,18 @@
 # 測試專用 compose — 與開發環境完全隔離
 # 使用方式: docker-compose -p thsrc-test -f docker-compose.test.yml up -d --build
+# 需要先建立 .env.test（git-ignored），內含 JWT_SECRET 與 TEST_API_KEY
 services:
   server:
     build: ./server
     ports:
       - "8081:8081"
+    env_file: .env.test
     environment:
-      JWT_SECRET: e2e-test-secret-do-not-use-in-prod
-      GOOGLE_CLIENT_ID: test-client-id.apps.googleusercontent.com
       MOCK_BOOKING_ENGINE: "true"
       MOCK_BOOKING_RESULT: "success"
       LINE_CHANNEL_ACCESS_TOKEN: mock-token
       LINE_USER_ID: mock-user
-      CAPTCHA_API_URL: http://localhost:8080
+      CAPTCHA_API_URL: http://captcha:8080
     volumes:
       - test-db-data:/app/data
     healthcheck:
@@ -29,6 +29,8 @@ services:
     ports:
       - "8082:8082"
     environment:
+      # serve.js 在 request time 注入 API_URL 到前端 JS，此處須設定讓瀏覽器能存取
+      # 瀏覽器從 localhost:8082 載入頁面，fetch 打 localhost:8081（host 網路）
       API_URL: http://localhost:8081
     depends_on:
       server:

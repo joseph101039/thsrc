@@ -4,42 +4,46 @@ const { test, expect } = require('@playwright/test');
 const { makeStorageState, setMockBookingResult, getTestToken, ADMIN_EMAIL } = require('./helpers/auth');
 const http = require('http');
 
-const SERVER_URL = 'http://localhost:8081';
-
-// 直接打 API 建立旅客
-function createPassengerViaApi(token) {
+function apiRequest(method, path, token, body = null) {
   return new Promise((resolve, reject) => {
-    const data = JSON.stringify({
-      name: 'E2E Booking 旅客',
-      idNumber: 'A123456789',
-      type: 'adult',
-      email: 'booking-e2e@test.com',
-    });
+    const data = body ? JSON.stringify(body) : null;
     const req = http.request({
-      hostname: 'localhost', port: 8081, path: '/v1/passengers', method: 'POST',
+      hostname: 'localhost', port: 8081, path, method,
       headers: {
-        'Content-Type': 'application/json',
-        'Content-Length': Buffer.byteLength(data),
+        ...(data ? { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(data) } : {}),
         Authorization: `Bearer ${token}`,
       },
     }, (res) => {
-      let body = '';
-      res.on('data', c => body += c);
-      res.on('end', () => resolve(JSON.parse(body)));
+      let raw = '';
+      res.on('data', c => raw += c);
+      res.on('end', () => {
+        let parsed;
+        try { parsed = JSON.parse(raw); } catch { parsed = { _raw: raw }; }
+        resolve({ status: res.statusCode, body: parsed });
+      });
     });
     req.on('error', reject);
-    req.write(data);
+    if (data) req.write(data);
     req.end();
   });
 }
 
-// 直接打 API 建立訂單
-function createBookingViaApi(token, passengerId, overrides = {}) {
-  const tomorrow = new Date();
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  const tDate = tomorrow.toISOString().slice(0, 10);
+// 直接打 API 建立旅客
+async function createPassengerViaApi(token) {
+  const res = await apiRequest('POST', '/v1/passengers', token, {
+    name: 'E2E Booking 旅客',
+    idNumber: 'A123456789',
+    type: 'adult',
+    email: 'booking-e2e@test.com',
+  });
+  if (res.status >= 400) throw new Error(`createPassengerViaApi failed: ${JSON.stringify(res.body)}`);
+  return res.body;
+}
 
-  const body = {
+// 直接打 API 建立訂單
+async function createBookingViaApi(token, passengerId, overrides = {}) {
+  const tDate = tomorrow();
+  const res = await apiRequest('POST', '/v1/bookings', token, {
     passengerId,
     fromStation: '台北',
     toStation: '左營',
@@ -58,44 +62,14 @@ function createBookingViaApi(token, passengerId, overrides = {}) {
     retryWaitValue: 2,
     immediate: false,
     ...overrides,
-  };
-
-  return new Promise((resolve, reject) => {
-    const data = JSON.stringify(body);
-    const req = http.request({
-      hostname: 'localhost', port: 8081, path: '/v1/bookings', method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Content-Length': Buffer.byteLength(data),
-        Authorization: `Bearer ${token}`,
-      },
-    }, (res) => {
-      let body = '';
-      res.on('data', c => body += c);
-      res.on('end', () => resolve(JSON.parse(body)));
-    });
-    req.on('error', reject);
-    req.write(data);
-    req.end();
   });
+  if (res.status >= 400) throw new Error(`createBookingViaApi failed: ${JSON.stringify(res.body)}`);
+  return res.body;
 }
 
 // 打 API 取消訂單
 function cancelBookingViaApi(token, bookingId) {
-  return new Promise((resolve, reject) => {
-    const req = http.request({
-      hostname: 'localhost', port: 8081,
-      path: `/v1/bookings/${bookingId}/cancel`,
-      method: 'POST',
-      headers: { Authorization: `Bearer ${token}` },
-    }, (res) => {
-      let body = '';
-      res.on('data', c => body += c);
-      res.on('end', () => resolve({ status: res.statusCode, body: JSON.parse(body) }));
-    });
-    req.on('error', reject);
-    req.end();
-  });
+  return apiRequest('POST', `/v1/bookings/${bookingId}/cancel`, token);
 }
 
 function tomorrow() {
@@ -104,14 +78,16 @@ function tomorrow() {
   return d.toISOString().slice(0, 10);
 }
 
-function yesterday() {
-  const d = new Date();
-  d.setDate(d.getDate() - 1);
-  return d.toISOString().slice(0, 10);
-}
-
 // 填寫訂票表單（時間模式）
 async function fillBookingForm(page, { passengerId, date, time = '09:00', mode = 'immediate' }) {
+  // 等待旅客選單非同步載入完成（option value 非空代表旅客資料已載入）
+  await page.waitForFunction(
+    () => {
+      const sel = document.getElementById('b-passenger');
+      return sel && Array.from(sel.options).some(o => o.value !== '');
+    },
+    { timeout: 10000 }
+  );
   await page.selectOption('#b-passenger', { value: passengerId });
   await page.selectOption('#b-from', { value: '台北' });
   await page.selectOption('#b-to', { value: '左營' });
@@ -223,9 +199,14 @@ test.describe('訂票流程', () => {
     const page = await context.newPage();
     await page.goto('/booking.html');
 
-    // 等待旅客選單載入後清空選擇
-    await page.waitForSelector('#b-passenger', { timeout: 5000 });
-    // 不選旅客，直接送出（旅客 select 預設已選第一個，需清空）
+    // 等待旅客選單非同步載入完成後清空選擇
+    await page.waitForFunction(
+      () => {
+        const sel = document.getElementById('b-passenger');
+        return sel && Array.from(sel.options).some(o => o.value !== '');
+      },
+      { timeout: 10000 }
+    );
     await page.evaluate(() => {
       document.getElementById('b-passenger').value = '';
     });
@@ -273,7 +254,7 @@ test.describe('訂票流程', () => {
     await context.close();
   });
 
-  test('場景 14：取消 cancelled 訂單 → API 回非 200', async () => {
+  test('場景 14：取消非 pending 訂單（已取消）→ API 回非 200 錯誤', async () => {
     // 建立 pending 訂單，取消一次（成功），再取消一次（應失敗）
     const booking = await createBookingViaApi(token, passengerId);
 

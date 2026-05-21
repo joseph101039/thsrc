@@ -8,7 +8,7 @@ const COMPOSE_FILE = path.resolve(__dirname, '../../../docker-compose.test.yml')
 const PROJECT = 'thsrc-test';
 const SERVER_URL = 'http://localhost:8081';
 const UI_URL = 'http://localhost:8082';
-const MAX_WAIT_MS = 60000;
+const MAX_WAIT_MS = 120000;
 const POLL_INTERVAL_MS = 2000;
 
 function composeCmd(args) {

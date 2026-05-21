@@ -5,16 +5,32 @@
 
 const express = require('express');
 const jwt = require('jsonwebtoken');
+const { VALID_ROLES } = require('../models/schemas');
 const router = express.Router();
 
 // 全局 mock 結果狀態（process 層級，單一 container 內）
 global.__mockBookingResult = process.env.MOCK_BOOKING_RESULT || 'success';
+
+// 所有 /test/* 端點必須帶 X-Test-Api-Key header，防止 MOCK_BOOKING_ENGINE 誤設時被濫用
+function requireTestApiKey(req, res, next) {
+  const key = process.env.TEST_API_KEY;
+  if (!key) return res.status(503).json({ error: 'TEST_API_KEY 未設定，/test 端點已停用' });
+  if (req.headers['x-test-api-key'] !== key) {
+    return res.status(403).json({ error: '無效的 X-Test-Api-Key' });
+  }
+  next();
+}
+
+router.use(requireTestApiKey);
 
 // POST /test/auth/token — 直接發行 JWT（繞過 Google OAuth）
 // body: { email: string, role?: 'admin'|'user' }
 router.post('/auth/token', (req, res) => {
   const { email, role = 'user' } = req.body || {};
   if (!email) return res.status(400).json({ error: '缺少 email' });
+  if (!VALID_ROLES.includes(role)) {
+    return res.status(400).json({ error: `role 必須為 ${VALID_ROLES.join('|')}` });
+  }
   const token = jwt.sign({ email, role }, process.env.JWT_SECRET, { expiresIn: '1h' });
   res.json({ token });
 });
