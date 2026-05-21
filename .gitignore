@@ -8,6 +8,10 @@ captcha/__pycache__
 .DS_Store
 *.log.env
 server/node_modules
+# Playwright E2E
+tests/e2e/node_modules/
+tests/e2e/test-results/
+tests/e2e/playwright-report/
 server/data/
 docker-compose.override.yml
 .env.local
