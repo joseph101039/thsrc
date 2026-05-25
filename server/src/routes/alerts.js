@@ -21,6 +21,25 @@ if (!TOKEN) {
   logger.warn('ALERT_WEBHOOK_TOKEN 未設定,/alerts/grafana 已停用(回 503)');
 }
 
+// Grafana Cloud 內建的系統 alert（DataSource Error 類），不需推送到 LINE
+// alertname 來自 Grafana Cloud 平台層，非使用者定義，無法從 Grafana UI 關閉
+const SUPPRESSED_ALERTNAMES = new Set([
+  'DatasourceError',
+  'DatasourceErrors',
+  'DatasourceNoData',
+  'Datasource Error',
+  'DataSourceError',
+]);
+
+function suppressSystemAlerts(body) {
+  if (!Array.isArray(body?.alerts)) return body;
+  const filtered = body.alerts.filter(a => {
+    const name = a.labels?.alertname;
+    return !name || !SUPPRESSED_ALERTNAMES.has(name);
+  });
+  return { ...body, alerts: filtered };
+}
+
 const alertsLimiter = rateLimit({
   windowMs: 5 * 60 * 1000,
   limit: 60,
@@ -45,12 +64,19 @@ router.post(
       return;
     }
     try {
-      const alerts = Array.isArray(req.body?.alerts) ? req.body.alerts : [];
-      const alertNames = alerts.map(a => a.labels?.alertname).filter(Boolean);
-      (req.log || logger).info({ alertCount: alerts.length, alertNames }, 'alert webhook 收到');
-      const result = await handleWebhook(req.body || {});
-      (req.log || logger).info(result, 'alert webhook 處理完成');
-      res.status(200).json(result);
+      const rawAlerts = Array.isArray(req.body?.alerts) ? req.body.alerts : [];
+      const alertNames = rawAlerts.map(a => a.labels?.alertname).filter(Boolean);
+      const payload = suppressSystemAlerts(req.body || {});
+      const suppressed = rawAlerts.length - (payload.alerts?.length ?? 0);
+      (req.log || logger).info({ alertCount: rawAlerts.length, alertNames, suppressed }, 'alert webhook 收到');
+      if (!payload.alerts?.length) {
+        (req.log || logger).info({ alertNames }, 'alert webhook: 全部被攔截，不推送');
+        res.status(200).json({ processed: 0, pushed: 0, deduped: 0, failed: 0, suppressed });
+        return;
+      }
+      const result = await handleWebhook(payload);
+      (req.log || logger).info({ ...result, suppressed }, 'alert webhook 處理完成');
+      res.status(200).json({ ...result, suppressed });
     } catch (err) {
       (req.log || logger).error({ err: err.message }, 'alert webhook 處理失敗');
       res.status(500).json({ error: 'internal_error' });
