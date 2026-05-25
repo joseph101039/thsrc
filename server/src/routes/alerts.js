@@ -45,8 +45,9 @@ router.post(
       return;
     }
     try {
-      const alertCount = Array.isArray(req.body?.alerts) ? req.body.alerts.length : 0;
-      (req.log || logger).info({ alertCount }, 'alert webhook 收到');
+      const alerts = Array.isArray(req.body?.alerts) ? req.body.alerts : [];
+      const alertNames = alerts.map(a => a.labels?.alertname).filter(Boolean);
+      (req.log || logger).info({ alertCount: alerts.length, alertNames }, 'alert webhook 收到');
       const result = await handleWebhook(req.body || {});
       (req.log || logger).info(result, 'alert webhook 處理完成');
       res.status(200).json(result);
