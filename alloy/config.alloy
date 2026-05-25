@@ -11,7 +11,7 @@
 // - scrape server (8081) 與 scheduler (8082) 兩個 process,不收 host / cAdvisor
 //   (P1 階段先求穩,active series 控制在 200 內,Grafana Cloud free tier 充裕)
 // - external_labels 加 env=prod / cluster=gce-uswest1 方便未來 multi-env 使用
-// - scrape interval 15s — Grafana Cloud free tier 建議節奏
+// - scrape interval 30s — 降低 remote_write 頻率，減少 Grafana Cloud 429 風險
 
 prometheus.scrape "thsrc_server" {
   targets = [
@@ -22,7 +22,7 @@ prometheus.scrape "thsrc_server" {
     },
   ]
   metrics_path    = "/metrics"
-  scrape_interval = "15s"
+  scrape_interval = "30s"
   scrape_timeout  = "10s"
 
   // Bearer token 帶入 server 的 /metrics
@@ -45,7 +45,7 @@ prometheus.scrape "thsrc_scheduler" {
     },
   ]
   metrics_path    = "/metrics"
-  scrape_interval = "15s"
+  scrape_interval = "30s"
   scrape_timeout  = "10s"
 
   authorization {
